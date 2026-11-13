@@ -23,5 +23,7 @@ public enum Permission {
     /** 회원과 그 회원의 예매 · 주문 · 결제 조회 */
     CS_READ,
     /** 예매 · 주문 취소 대행 */
-    CS_CANCEL
+    CS_CANCEL,
+    /** 검표 — 검표할 공연 목록 · 입장 QR 확인 */
+    CHECK_IN
 }
