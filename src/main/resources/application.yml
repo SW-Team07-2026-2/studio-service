@@ -1,0 +1,76 @@
+spring:
+  application.name: studio
+  config.import: optional:configtree:/etc/secrets/      # KT 전용 Secret — 🔴 AWS 서비스들의 app-secrets 를 마운트하지 않습니다
+
+  datasource:
+    # 시각은 전부 UTC 로 저장합니다 (DATETIME(3))
+    url: jdbc:mysql://${DB_HOST}:3306/studio?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
+    username: studio_app
+    password: ${db.password}                  # ← configtree 파일
+    hikari:
+      maximum-pool-size: 5                    # 관리자는 동시에 한 자릿수
+      minimum-idle: 1
+      connection-timeout: 3000
+
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: validate              # Flyway 와 엔티티가 어긋나면 기동 실패
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    validate-on-migrate: true
+
+  servlet:
+    multipart:
+      max-file-size: 10MB                     # 무대 도면 사진 (app.gpu.max-image-bytes 와 같은 값)
+      max-request-size: 12MB
+
+server:
+  port: 8085
+  shutdown: graceful
+
+management:
+  server.port: 8095
+  endpoints.web.exposure.include: health,info,prometheus
+  endpoint.health:
+    probes.enabled: true
+    group:
+      readiness.include: db
+      liveness.include: ping
+
+app:
+  session:
+    ttl-hours: 8                              # 로그인 후 최대 8시간 (업무일 단위)
+    idle-minutes: 30                          # 30분 동안 요청이 없으면 만료
+    cookie-secure: true
+    cookie-same-site: ${STUDIO_COOKIE_SAMESITE:Strict}   # 관리자 화면이 다른 사이트(도메인)에 있으면 None
+  login:
+    challenge-minutes: 5                      # 1차(아이디 · 비밀번호) 통과 후 OTP 입력까지
+    max-failures: 5                           # 비밀번호 · OTP 연속 실패
+    lock-minutes: 15
+    bcrypt-strength: 12
+  totp:
+    issuer: indie-studio                      # OTP 앱에 보이는 이름
+  bootstrap:                                  # 계정이 하나도 없을 때만 — 첫 마스터 계정 (비밀번호는 configtree bootstrap.master-password)
+    master-login-id: ${STUDIO_MASTER_LOGIN_ID:}
+    master-name: ${STUDIO_MASTER_NAME:마스터}
+  internal-token:                             # 나가는 호출 (Studio → Concert · Catalog · Member · Payment)
+    issuer: studio
+    ttl-seconds: 300
+  services:                                   # AWS 서비스 — KT 노드에서 WireGuard 터널을 건너갑니다
+    concert: ${CONCERT_BASE_URL:http://concert:8083}
+    catalog: ${CATALOG_BASE_URL:http://catalog:8082}
+    member: ${MEMBER_BASE_URL:http://member:8081}
+    payment: ${PAYMENT_BASE_URL:http://payment:8084}
+    connect-timeout-ms: 2000
+    read-timeout-ms: 10000                    # 터널 + 좌석 수천 건 저장
+  gpu:                                        # 무대 그리기 검증 서버 (개인 GPU 서버 · WireGuard 피어) — 토큰은 configtree gpu.token
+    base-url: ${GPU_BASE_URL:}
+    connect-timeout-ms: 3000
+    read-timeout-ms: 180000                   # 분석이 느려도 기다립니다 (백그라운드 작업)
+    max-image-bytes: 10485760
+  cors:
+    allowed-origins: ${STUDIO_ALLOWED_ORIGINS:}          # 관리자 화면 출처 (쉼표 구분). 같은 출처면 비워 둡니다

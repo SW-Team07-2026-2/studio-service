@@ -1,0 +1,15 @@
+# 로컬 MySQL — 운영(KT)과 같은 8.4. 다른 서비스의 PostgreSQL(5432)과 겹치지 않게 3307 로 엽니다
+# docker compose -f local/compose.yml up -d
+services:
+  studio-mysql:
+    image: mysql:8.4
+    ports: ["127.0.0.1:3307:3306"]
+    environment:
+      MYSQL_DATABASE: studio
+      MYSQL_USER: studio_app
+      MYSQL_PASSWORD: studio-local-pw          # 로컬 전용 — local/setup-local.sh 가 같은 값을 local-secrets/db.password 에 씁니다
+      MYSQL_ROOT_PASSWORD: studio-local-root
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    volumes: ["studio-mysql:/var/lib/mysql"]
+volumes:
+  studio-mysql:

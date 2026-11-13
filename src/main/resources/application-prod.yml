@@ -1,0 +1,4 @@
+# 운영 값은 전부 ConfigMap(env) · /etc/secrets 파일로 들어옵니다
+# env: DB_HOST · CONCERT_BASE_URL · CATALOG_BASE_URL · MEMBER_BASE_URL · PAYMENT_BASE_URL · GPU_BASE_URL · STUDIO_ALLOWED_ORIGINS · STUDIO_MASTER_LOGIN_ID
+# 파일: db.password · internal.shared-secret · totp.encryption-key · gpu.token · bootstrap.master-password
+logging.level.root: INFO

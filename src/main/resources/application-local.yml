@@ -1,0 +1,21 @@
+spring:
+  # 로컬 시크릿도 운영과 같은 방식 — ./local-secrets/ 의 파일 이름이 프로퍼티 키 (local/setup-local.sh 가 만듭니다)
+  config.import: optional:configtree:./local-secrets/
+  datasource.url: jdbc:mysql://localhost:3307/studio?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
+
+app:
+  session:
+    cookie-secure: false                      # 로컬은 http
+    cookie-same-site: Lax
+  bootstrap:
+    master-login-id: master
+  services:
+    concert: http://localhost:8083
+    catalog: http://localhost:8082
+    member: http://localhost:8081
+    payment: http://localhost:8084
+  gpu.base-url: http://localhost:9100
+  cors.allowed-origins: http://localhost:5173
+
+logging:
+  pattern.console: "%d{HH:mm:ss.SSS} %-5level [%X{correlationId:-}] %logger{36} - %msg%n"

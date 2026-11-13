@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.indie'
+version = '0.0.1'
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+
+repositories { mavenCentral() }
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
+    runtimeOnly 'com.mysql:mysql-connector-j'               // 🔴 다른 서비스(PostgreSQL)와 달리 Studio 는 KT 의 MySQL 을 씁니다
+
+    implementation 'org.springframework.security:spring-security-crypto'   // BCrypt 만 — Spring Security 필터 체인은 쓰지 않습니다
+    implementation 'com.nimbusds:nimbus-jose-jwt:9.40'      // 나가는 X-Internal-Token (iss=studio) 발급
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:mysql:1.20.3'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.3'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // Docker 29 는 API 1.44 미만을 거부합니다 — Testcontainers(docker-java) 기본값이 더 낮아 컨테이너를 못 띄웁니다
+    systemProperty 'api.version', '1.44'
+}
