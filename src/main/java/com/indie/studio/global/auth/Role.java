@@ -5,7 +5,7 @@ import java.util.Set;
 
 /**
  * 역할 — 계정마다 하나. 하위 관리자는 자기 역할의 권한만 가지고, 다른 역할의 화면 · API 가 있는지도 알 수 없습니다.
- * 값을 바꾸면 V1__studio_schema.sql 의 ck_admin_role 도 함께 고칩니다.
+ * 값을 바꾸면 V2__studio_values.sql 의 ck_admin_role 도 함께 고칩니다.
  */
 public enum Role {
     /** 마스터 — 모든 기능 + 관리자 계정 · 작업 기록 */
@@ -17,7 +17,9 @@ public enum Role {
     /** 굿즈 관리자 — 굿즈 · 피지컬 앨범 */
     GOODS(EnumSet.of(Permission.SELF, Permission.PRODUCT, Permission.STOCK)),
     /** CS 관리자 — 회원의 티켓팅 · 굿즈 · 피지컬 앨범 구매 문의 */
-    CS(EnumSet.of(Permission.SELF, Permission.CS_READ, Permission.CS_CANCEL));
+    CS(EnumSet.of(Permission.SELF, Permission.CS_READ, Permission.CS_CANCEL)),
+    /** 검표 관리자 — 공연장 입구에서 입장 QR 확인 */
+    CHECKER(EnumSet.of(Permission.SELF, Permission.CHECK_IN));
 
     private final Set<Permission> permissions;
 

@@ -1,6 +1,8 @@
 -- Studio(관리자 서비스) 스키마 — KT MySQL 8.4 · 스키마 studio · utf8mb4.
 -- 업무 데이터(공연 · 상품 · 회원)는 여기 없습니다. AWS 서비스의 내부 API 로만 읽고 씁니다.
--- 시각은 전부 UTC DATETIME(3). enum 값은 VARCHAR + CHECK (Java enum 과 함께 고칩니다 — StudioSchemaTest 가 대조).
+-- 시각은 전부 UTC DATETIME(3). enum 값은 VARCHAR 이고 값 목록(CHECK)은 V2__studio_values.sql 에 있습니다.
+-- 🔴 마이그레이션은 이 파일(V1 구조)과 V2(값) 두 개만 둡니다 — 구조를 바꾸면 이 파일을 고치고 DB 스키마를 비운 뒤 다시 올립니다.
+--    적용된 뒤에 파일만 고치면 Flyway 체크섬 검증에 걸려 서비스가 뜨지 않습니다.
 
 -- 관리자 계정 — 아이디 · 비밀번호(bcrypt) · OTP 비밀키(AES-GCM 암호문). 계정마다 역할 하나.
 -- 🔴 행을 지우지 않습니다 (audit_log · stage_job 과 AWS 쪽 기록이 이 id 를 가리킵니다). 퇴사 · 업무 종료는 DISABLED.
@@ -19,9 +21,7 @@ CREATE TABLE admin_account (
     created_at      DATETIME(3)    NOT NULL,
     updated_at      DATETIME(3)    NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT uq_admin_login_id UNIQUE (login_id),
-    CONSTRAINT ck_admin_role CHECK (role IN ('MASTER', 'STAGE', 'CONCERT', 'GOODS', 'CS')),
-    CONSTRAINT ck_admin_status CHECK (status IN ('ACTIVE', 'DISABLED'))
+    CONSTRAINT uq_admin_login_id UNIQUE (login_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
 -- 로그인 2단계 대기 — 1차(아이디 · 비밀번호) 통과 뒤 OTP 를 넣기까지. 5분 · 1회용. 쿠키 값의 해시만 둡니다.
@@ -74,8 +74,7 @@ CREATE TABLE stage_job (
     sent_at       DATETIME(3)  NULL,
     PRIMARY KEY (id),
     CONSTRAINT fk_stage_job_requester FOREIGN KEY (requested_by) REFERENCES admin_account (id),
-    CONSTRAINT fk_stage_job_sender FOREIGN KEY (sent_by) REFERENCES admin_account (id),
-    CONSTRAINT ck_stage_job_status CHECK (status IN ('PENDING', 'ANALYZING', 'REVIEW', 'SENT', 'FAILED'))
+    CONSTRAINT fk_stage_job_sender FOREIGN KEY (sent_by) REFERENCES admin_account (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 CREATE INDEX idx_stage_job_venue ON stage_job (venue_id, id);
 
@@ -88,8 +87,7 @@ CREATE TABLE stage_job_image (
     data         LONGBLOB    NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uq_stage_job_image UNIQUE (job_id, kind),
-    CONSTRAINT fk_stage_job_image_job FOREIGN KEY (job_id) REFERENCES stage_job (id) ON DELETE CASCADE,
-    CONSTRAINT ck_stage_job_image_kind CHECK (kind IN ('ORIGINAL', 'RESULT'))
+    CONSTRAINT fk_stage_job_image_job FOREIGN KEY (job_id) REFERENCES stage_job (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
 -- 작업 기록 — 로그인한 관리자의 요청 1건 = 1행 (조회 포함 · 권한 밖 시도 포함). 개인정보 값 · 검색어 · 본문은 남기지 않습니다.
@@ -105,7 +103,6 @@ CREATE TABLE audit_log (
     client_ip   VARCHAR(45)  NOT NULL,
     duration_ms INT          NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES admin_account (id),
-    CONSTRAINT ck_audit_result CHECK (result IN ('OK', 'FAILED', 'DENIED'))
+    CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES admin_account (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 CREATE INDEX idx_audit_admin ON audit_log (admin_id, id);

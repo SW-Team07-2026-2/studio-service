@@ -22,8 +22,8 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 스키마 — 이 테스트 컨텍스트가 뜬 것 자체가 Flyway V1 과 엔티티의 일치(ddl-auto: validate)를 확인합니다.
- * 여기서는 DB 의 CHECK 값 목록과 Java enum 이 같은지 봅니다 (한쪽만 고치면 깨짐).
+ * 스키마 — 이 테스트 컨텍스트가 뜬 것 자체가 Flyway(V1 구조 · V2 값)와 엔티티의 일치(ddl-auto: validate)를 확인합니다.
+ * 여기서는 V2 의 CHECK 값 목록과 Java enum 이 같은지 봅니다 (한쪽만 고치면 깨짐).
  */
 class StudioSchemaTest extends IntegrationTest {
 
@@ -31,6 +31,14 @@ class StudioSchemaTest extends IntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    /** 마이그레이션은 V1(구조) · V2(값) 두 파일 */
+    @Test
+    void migrationsAreSchemaThenValues() {
+        assertThat(jdbc.queryForList("select concat(version, ' ', description) from flyway_schema_history "
+                + "where success and version is not null order by installed_rank", String.class))
+                .containsExactly("1 studio schema", "2 studio values");
+    }
 
     @Test
     void checkConstraintValuesMatchJavaEnums() {

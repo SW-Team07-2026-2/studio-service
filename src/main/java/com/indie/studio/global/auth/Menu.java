@@ -9,6 +9,7 @@ public enum Menu {
     CONCERTS("concerts", "공연", Permission.CONCERT),
     PRODUCTS("products", "굿즈 · 피지컬 앨범", Permission.PRODUCT),
     CS("cs", "CS", Permission.CS_READ),
+    CHECKIN("checkin", "검표", Permission.CHECK_IN),
     ACCOUNTS("accounts", "관리자 계정", Permission.ACCOUNT),
     AUDIT("audit", "작업 기록", Permission.AUDIT);
 
