@@ -34,6 +34,7 @@ class RbacTest extends IntegrationTest {
             new String[]{"concerts", "/api/studio/concerts"},
             new String[]{"products", "/api/studio/products/goods"},
             new String[]{"cs", "/api/studio/cs/members"},
+            new String[]{"checkin", "/api/studio/check-in/concerts"},
             new String[]{"accounts", "/api/studio/accounts"},
             new String[]{"audit", "/api/studio/audit-logs"});
 
@@ -46,7 +47,8 @@ class RbacTest extends IntegrationTest {
                 "STAGE", List.of("venues"),
                 "CONCERT", List.of("concerts"),
                 "GOODS", List.of("products"),
-                "CS", List.of("cs"));
+                "CS", List.of("cs"),
+                "CHECKER", List.of("checkin"));
         for (Map.Entry<String, List<String>> entry : expected.entrySet()) {
             Session session = newAdmin(entry.getKey());
             STUB.fallbackOk("{\"content\":[]}");
@@ -59,7 +61,7 @@ class RbacTest extends IntegrationTest {
 
         Session master = loginMaster();
         STUB.fallbackOk("{\"content\":[]}");
-        assertThat(menuKeys(master)).containsExactly("venues", "concerts", "products", "cs", "accounts", "audit");
+        assertThat(menuKeys(master)).containsExactly("venues", "concerts", "products", "cs", "checkin", "accounts", "audit");
         for (String[] area : AREAS) {
             mvc.perform(get(area[1]).cookie(master.cookie())).andExpect(status().isOk());
         }
@@ -106,6 +108,29 @@ class RbacTest extends IntegrationTest {
         assertThat(token.verify(new MACVerifier(SHARED_SECRET.getBytes(StandardCharsets.UTF_8)))).isTrue();
         assertThat(token.getJWTClaimsSet().getIssuer()).isEqualTo("studio");
         assertThat(token.getJWTClaimsSet().getAudience()).containsExactly("concert");
+    }
+
+    /** 검표 — 검표자는 세션의 관리자입니다. 화면이 다른 checkerId 를 보내도 쓰지 않고, 이미 입장한 QR 은 Concert 의 409 를 그대로 냅니다 */
+    @Test
+    void checkInSendsSessionAdminAsChecker() throws Exception {
+        Session checker = newAdmin("CHECKER");
+        long checkerId = checker.me().get("id").asLong();
+        STUB.ok("POST", "/internal/admin/concerts/31/check-in", "{\"bookingId\":5,\"seats\":[\"1F A 2열 3번\"],\"checkedInAt\":\"2026-11-13T10:00:00Z\"}");
+
+        mvc.perform(as(checker, post("/api/studio/check-in/concerts/31")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"qr-value\",\"checkerId\":999}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.bookingId").value(5));
+
+        JsonNode sent = objectMapper.readTree(STUB.received("POST", "/internal/admin/concerts/31/check-in").get(0).bodyText());
+        assertThat(sent.get("token").asText()).isEqualTo("qr-value");
+        assertThat(sent.get("checkerId").asLong()).isEqualTo(checkerId);
+
+        STUB.reply("POST", "/internal/admin/concerts/31/check-in", 409,
+                "{\"isSuccess\":false,\"code\":\"ALREADY_CHECKED_IN\",\"message\":\"이미 입장한 예매입니다\"}");
+        mvc.perform(as(checker, post("/api/studio/check-in/concerts/31")).contentType(MediaType.APPLICATION_JSON).content("{\"token\":\"qr-value\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ALREADY_CHECKED_IN"));
+        mvc.perform(as(checker, post("/api/studio/check-in/concerts/31")).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
