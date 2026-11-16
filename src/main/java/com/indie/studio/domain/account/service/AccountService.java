@@ -6,7 +6,7 @@ import com.indie.studio.domain.account.dto.AccountDtos.UpdateRequest;
 import com.indie.studio.domain.account.entity.AdminAccountEntity;
 import com.indie.studio.domain.account.exception.AccountErrorCode;
 import com.indie.studio.domain.account.repository.AdminAccountRepository;
-import com.indie.studio.domain.auth.repository.SessionRepository;
+import com.indie.studio.domain.auth.repository.SessionStore;
 import com.indie.studio.global.auth.AdminPrincipal;
 import com.indie.studio.global.common.exception.GeneralException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,11 +25,11 @@ import java.util.List;
 public class AccountService {
 
     private final AdminAccountRepository accounts;
-    private final SessionRepository sessions;
+    private final SessionStore sessions;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
-    public AccountService(AdminAccountRepository accounts, SessionRepository sessions, PasswordEncoder passwordEncoder, Clock clock) {
+    public AccountService(AdminAccountRepository accounts, SessionStore sessions, PasswordEncoder passwordEncoder, Clock clock) {
         this.accounts = accounts;
         this.sessions = sessions;
         this.passwordEncoder = passwordEncoder;
@@ -56,7 +56,7 @@ public class AccountService {
         boolean accessChanged = (request.role() != null && request.role() != account.getRole())
                 || (request.status() != null && request.status() != account.getStatus());
         account.update(request.name() == null ? null : request.name().trim(), request.role(), request.status(), now);
-        if (accessChanged) sessions.revokeAll(account.getId(), now);
+        if (accessChanged) sessions.revokeAll(account.getId());
         return AccountView.of(account);
     }
 
@@ -67,7 +67,7 @@ public class AccountService {
         PasswordPolicy.check(account.getLoginId(), password);
         Instant now = clock.instant();
         account.changePassword(passwordEncoder.encode(password), now);
-        sessions.revokeAll(account.getId(), now);
+        sessions.revokeAll(account.getId());
     }
 
     /** OTP 기기 분실 — 다음 로그인 때 다시 등록합니다 */
@@ -76,7 +76,7 @@ public class AccountService {
         AdminAccountEntity account = other(id, actor, true);
         Instant now = clock.instant();
         account.resetOtp(now);
-        sessions.revokeAll(account.getId(), now);
+        sessions.revokeAll(account.getId());
     }
 
     private AdminAccountEntity other(long id, AdminPrincipal actor, boolean forbidSelf) {

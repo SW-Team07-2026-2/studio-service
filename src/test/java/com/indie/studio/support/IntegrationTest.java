@@ -18,6 +18,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 
 import java.io.ByteArrayOutputStream;
@@ -31,7 +32,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 앱 전체 + 진짜 MySQL 8.4 (Testcontainers · Flyway V1 + ddl-auto validate) + 가짜 AWS 서비스 · GPU 서버.
+ * 앱 전체 + 진짜 MySQL 8.4 (Testcontainers · Flyway V1 + ddl-auto validate) + 진짜 Redis 7.4 (비밀번호 있음) + 가짜 AWS 서비스 · GPU 서버.
  * 🔴 Docker 가 꺼져 있으면 이 테스트들은 실패합니다 (건너뛰지 않음).
  * DB 는 테스트 사이에 비우지 않습니다 — 테스트마다 다른 아이디를 씁니다 (newLoginId).
  */
@@ -48,11 +49,15 @@ public abstract class IntegrationTest {
 
     private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4")
             .withDatabaseName("studio").withUsername("studio_app").withPassword("test-db-password");
+    protected static final String REDIS_PASSWORD = "test-redis-password";
+    private static final GenericContainer<?> REDIS = new GenericContainer<>("redis:7.4-alpine")
+            .withCommand("redis-server", "--requirepass", REDIS_PASSWORD).withExposedPorts(6379);
     private static final Map<String, byte[]> OTP_SECRETS = new ConcurrentHashMap<>();
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
 
     static {
         MYSQL.start();
+        REDIS.start();
     }
 
     @TestConfiguration
@@ -68,6 +73,9 @@ public abstract class IntegrationTest {
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> MYSQL.getJdbcUrl() + "?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true");
         registry.add("db.password", MYSQL::getPassword);
+        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("redis.password", () -> REDIS_PASSWORD);
         registry.add("internal.shared-secret", () -> SHARED_SECRET);
         registry.add("totp.encryption-key", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");   // "0123456789abcdef" × 2
         registry.add("gpu.token", () -> "gpu-test-token");

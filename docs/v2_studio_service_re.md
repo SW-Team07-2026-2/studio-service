@@ -2,19 +2,19 @@
 
 > **상태: 구현 완료 · main 머지 (2026-11-13, `6c1d371`) · 배포 안 됨.** 같은 날 검표 역할을 추가하고 마이그레이션을 두 파일(V1 구조 · V2 값)로 정리했습니다.
 > 테스트 21건 통과 (건너뜀 0 · Docker 필요). Studio 가 부르는 내부 API 는 concert · catalog · member · payment 에 모두 만들었습니다 (9장).
-> ✏️ **11/16 KT Cloud 를 받아 배포 설정을 만들었습니다** — KT 는 AWS · PC 클러스터에 붙지 않는 **독립 클러스터**이고, AWS 또는 온프레미스(PC)를 Cloudflare 관리자 터널로 부릅니다 (`SW-Team07-2026-2/manifests-kt` README · 9장). 🔴 실제 KT VM · GPU 서버 · 서비스 연동은 아직 확인하지 못했습니다 (10장).
+> ✏️ **11/16 KT Cloud 를 받아 배포 설정을 만들었습니다** — KT 는 AWS · PC 클러스터에 붙지 않고 **VM 한 대의 docker compose** 로 돌며(MySQL · Redis · Studio · Prometheus · Grafana), AWS 또는 온프레미스(PC)를 Cloudflare 관리자 터널로 부릅니다 (`SW-Team07-2026-2/manifests-kt` README · 9장). 같은 날 **로그인 2단계 대기 · 세션을 MySQL 에서 Redis 로** 옮겼습니다 (2장 · 4장). 실제 KT VM · GPU 서버 · 서비스 연동은 아직 확인하지 못했습니다 (10장).
 > 전 서비스 공통의 남은 일은 `indie-msa/docs/v2_후속_작업.md`, 전체 API 는 `indie-msa/docs/v2_API_명세서.md`, 관리자 화면 확인 사항은 `indie-msa/docs/v2_프론트_체크사항.md` 에 있습니다.
 
 ## 0. 한눈에 보기
 
-- **관리자 전용 백엔드입니다.** KT Cloud 에서 돌고 DB 는 MySQL 8.4 (`studio` 스키마) 입니다. 포트 8085 (관리 8095).
-- **로그인은 2단계입니다.** 1차 아이디 · 비밀번호(DB · bcrypt) → 2차 OTP(TOTP) → 대시보드. 첫 로그인 때 OTP 를 등록합니다.
+- **관리자 전용 백엔드입니다.** KT Cloud 에서 돌고 DB 는 MySQL 8.4 (`studio` 스키마), 로그인 2단계 대기 · 세션은 Redis 7.4 입니다. 포트 8085 (관리 8095).
+- **로그인은 2단계입니다.** 1차 아이디 · 비밀번호(MySQL · bcrypt) → 2차 OTP(TOTP) → 대시보드. 첫 로그인 때 OTP 를 등록합니다. 2단계 대기(5분)와 세션은 Redis 에 둡니다.
 - **계정마다 역할이 하나입니다.** `MASTER` · `STAGE`(무대) · `CONCERT`(공연) · `GOODS`(굿즈 · 피지컬 앨범) · `CS` · `CHECKER`(검표).
 - **하위 관리자는 서로를 모릅니다.** 탭은 `/me` 가 내려준 것만 그리고, 권한 밖 API 는 없는 경로와 똑같은 404 가 나갑니다.
-- **업무 데이터는 Studio 에 없습니다.** 공연 · 상품 · 회원 · 결제는 Concert · Catalog · Member · Payment 내부 API 로 읽고 씁니다 (`X-Internal-Token`, iss=`studio`). 서비스는 AWS 또는 온프레미스(PC)에 있고, KT 에서 `https://link-aws.indig.co.kr` · `https://link-onprem.indig.co.kr` 중 하나를 부릅니다 — 전환은 `manifests-kt` 의 `apps/studio.yaml` 한 줄 (6.8).
+- **업무 데이터는 Studio 에 없습니다.** 공연 · 상품 · 회원 · 결제는 Concert · Catalog · Member · Payment 내부 API 로 읽고 씁니다 (`X-Internal-Token`, iss=`studio`). 서비스는 AWS 또는 온프레미스(PC)에 있고, KT 에서 `https://link-aws.indig.co.kr` · `https://link-onprem.indig.co.kr` 중 하나를 부릅니다 — 전환은 `manifests-kt` 의 `compose.yml` 한 줄 (`x-link-base-url` · 6.8).
 - **무대 그리기:** 화면에서 그린 값 + 도면 사진 → Studio(KT) → 개인 GPU 서버(WireGuard) 검증 → 사진과 값이 화면으로 → 무대 관리자가 확인 → Concert 로 전송. **S3 는 거치지 않습니다.** 사진은 Studio DB 에 둡니다.
 - **관리자의 요청은 전부 `audit_log` 에 남습니다** (조회 · 권한 밖 시도 포함). 검색어 · 본문 · 개인정보 값은 남기지 않습니다.
-- 테이블은 6개입니다: `admin_account` · `admin_login_challenge` · `admin_session` · `stage_job` · `stage_job_image` · `audit_log`.
+- 테이블은 4개입니다: `admin_account` · `stage_job` · `stage_job_image` · `audit_log`. ✏️ 11/16 `admin_login_challenge` · `admin_session` 은 Redis 키로 옮겼습니다 (2장).
 - **이전 설계는 폐기했습니다.** `docs/22`(§2 · §3) · `docs/24` · `docs/34_관리자_서비스_ERD.html` 은 이 문서와 다릅니다. 파일은 남겨 두고 각 문서 머리에 "폐기" 를 표시했습니다 (12장 ⑨).
 - **이미지는 URL 만 다룹니다.** 크롤링 이미지는 수집기가 S3 에 올리고 URL 을 넘기며, 그 데이터를 Concert 에 실제로 저장하는 것은 Studio 입니다 (6.4 · 12장 ③).
 
@@ -26,7 +26,7 @@
   - 관리자 화면(프론트) — API 와 화면이 알아야 할 것만 정리했습니다 (11장)
   - 다른 서비스의 수정 — 처음에는 목록만 남겼고, 같은 날 각 서비스에서 만들었습니다 (9장)
   - GPU 서버 구현 — 요청 · 응답 모양까지만 정했습니다 (5.3)
-  - ~~KT 배포~~ — ✏️ 11/16 만들었습니다 (`manifests` 의 `services/studio` · `services/studio-link` · `manifests-kt` · 9장)
+  - ~~KT 배포~~ — ✏️ 11/16 만들었습니다 (`manifests-kt` 의 docker compose · `manifests` 의 `services/studio-link` · 9장)
   - 수집기(크롤링 · LLM 전처리)
 
 ## 2. 테이블 정의
@@ -46,18 +46,29 @@ id 는 모두 `BIGINT AUTO_INCREMENT`, 시각은 UTC `DATETIME(3)`, enum 은 `VA
 | 테이블 | 컬럼 |
 |---|---|
 | `admin_account` | `id` · `login_id`(UNIQUE) · `name` · `password_hash`(bcrypt) · `role` · `status` · `totp_secret_enc` · `totp_last_step` · `failed_count` · `locked_until` · `last_login_at` · `created_at` · `updated_at` |
-| `admin_login_challenge` | `id` · `token_hash`(UNIQUE) · `admin_id`(FK) · `enroll_secret_enc` · `client_ip` · `attempts` · `expires_at` · `used_at` · `created_at` |
-| `admin_session` | `id` · `token_hash`(UNIQUE) · `admin_id`(FK) · `csrf_token` · `client_ip` · `created_at` · `expires_at` · `last_seen_at` · `revoked_at` |
 | `stage_job` | `id` · `venue_id` · `venue_name` · `status` · `drawing_json` · `result_json` · `sent_json` · `error_message` · `requested_by`(FK) · `sent_by`(FK) · `created_at` · `analyzed_at` · `sent_at` |
 | `stage_job_image` | `id` · `job_id`(FK · CASCADE) · `kind` · `content_type` · `data`(LONGBLOB) — UNIQUE(`job_id`, `kind`) |
 | `audit_log` | `id` · `occurred_at` · `admin_id`(FK) · `role` · `method` · `path` · `status` · `result` · `client_ip` · `duration_ms` |
 
 - **`admin_account` 의 행은 지우지 않습니다.** 작업 기록 · 무대 작업 · AWS 쪽 기록이 이 id 를 가리킵니다. 퇴사 · 업무 종료는 `DISABLED` 입니다. 삭제 API 가 없습니다.
-- **DB 에는 원문이 없습니다.** 비밀번호는 bcrypt(강도 12), OTP 비밀키는 AES-256-GCM 암호문, 세션 · 2단계 대기 쿠키는 SHA-256 해시만 둡니다.
+- **DB 에는 원문이 없습니다.** 비밀번호는 bcrypt(강도 12), OTP 비밀키는 AES-256-GCM 암호문, 세션 · 2단계 대기 쿠키는 SHA-256 해시만 (Redis 키) 둡니다.
 - `totp_secret_enc` 가 NULL 이면 OTP 미등록입니다. 다음 로그인 때 등록합니다.
 - `stage_job.venue_id` 는 Concert 의 공연장 id 입니다 (다른 DB 라 FK 없음).
 - 사진은 목록 조회에 딸려 오지 않게 `stage_job_image` 로 나눴습니다. `kind` 는 `ORIGINAL`(올린 사진) · `RESULT`(GPU 가 돌려준 사진).
 - `audit_log.path` 는 쿼리스트링을 뺀 경로입니다. `role` 은 그 시점의 역할입니다.
+
+**Redis 키** — ✏️ 11/16 로그인 2단계 대기 · 세션을 MySQL 테이블에서 옮겼습니다 (`LoginChallengeStore` · `SessionStore`)
+
+| 키 | 모양 · 만료 | 내용 |
+|---|---|---|
+| `studio:auth:challenge:<SHA-256(쿠키)>` | 해시 · 5분 | `adminId` · `enroll`(OTP 등록 중일 때 새 비밀키 암호문 · base64) · `ip` · `attempts` · `expiresAt` |
+| `studio:auth:session:<SHA-256(쿠키)>` | 해시 · 8시간 | `adminId` · `csrf` · `ip` · `createdAt` · `lastSeenAt` · `expiresAt` |
+| `studio:auth:admin-sessions:<adminId>` | 집합 · 마지막 로그인 + 8시간 | 그 계정의 세션 해시들 — 역할 · 상태 · 비밀번호 · OTP 가 바뀔 때 한꺼번에 끊으려고 |
+
+- 만료(5분 · 8시간 · 30분 무요청) 판정은 저장한 시각과 앱 시계로 하고, Redis 만료는 청소용입니다 (예전의 1시간마다 지우던 작업은 없앴습니다).
+- 2단계 대기는 OTP 가 맞으면 키를 지워서 1회용입니다 (먼저 지운 요청만 통과). 시도 횟수 · 마지막 접속 시각은 키가 있을 때만 고칩니다 (방금 지워진 키를 만료 없이 되살리지 않게).
+- 주의: **Redis 가 데이터를 잃으면(재시작) 관리자가 모두 로그아웃될 뿐입니다.** 계정 · OTP 비밀키 · 잠금 · 감사 로그는 MySQL 에 있습니다. KT 의 Redis 는 디스크에 쓰지 않습니다.
+- 세션 끊기는 MySQL 트랜잭션 밖입니다 — 계정 변경이 롤백돼도 세션은 끊긴 채입니다 (다시 로그인하면 됨). 요청마다 계정을 MySQL 에서 다시 보므로 반대 방향(끊겨야 할 세션이 남음)의 권한 문제는 없습니다.
 
 | enum | 값 |
 |---|---|
@@ -275,7 +286,7 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 - 대상의 401 · 403 · 5xx 는 502 `UPSTREAM_ERROR` 입니다. 🔴 401 을 그대로 내보내면 화면이 관리자를 로그아웃시키기 때문입니다.
 - 연결 실패 · 시간 초과(연결 2초 · 응답 10초)는 503 `UPSTREAM_UNAVAILABLE` 입니다.
 - 공개 조회(`/api/concerts/**` · `/api/catalog/**`)도 Gateway 가 아니라 서비스를 직접 부릅니다.
-- ✏️ 11/16 운영에서는 4개 주소가 모두 `$(LINK_BASE_URL)` 하나입니다 (`https://link-<환경>.indig.co.kr`). 그 환경의 cloudflared(`studio-link`)가 경로로 서비스를 나눕니다 — `/internal/admin/concerts` · `/api/concerts` → concert, `…/catalog` → catalog, `/internal/admin/members` → member, `/internal/admin/payments` → payment. 그 밖의 경로는 터널이 404 로 끝내고, KT 공인 IP 밖에서 온 요청은 Cloudflare WAF 가 막습니다. 🔴 Studio 가 새 경로 앞부분을 부르면 터널 규칙(`manifests-kt` README "Cloudflare")에도 더해야 합니다.
+- ✏️ 11/16 운영에서는 4개 주소가 모두 `manifests-kt` `compose.yml` 의 `x-link-base-url` 하나입니다 (`https://link-<환경>.indig.co.kr`). 그 환경의 cloudflared(`studio-link`)가 경로로 서비스를 나눕니다 — `/internal/admin/concerts` · `/api/concerts` → concert, `…/catalog` → catalog, `/internal/admin/members` → member, `/internal/admin/payments` → payment. 그 밖의 경로는 터널이 404 로 끝내고, KT 공인 IP 밖에서 온 요청은 Cloudflare WAF 가 막습니다. 🔴 Studio 가 새 경로 앞부분을 부르면 터널 규칙(`manifests-kt` README "Cloudflare")에도 더해야 합니다.
 
 ## 7. 오류 코드
 
@@ -307,14 +318,15 @@ com.indie.studio
              (concert · product · cs · checkin 은 컨트롤러만 — 대상 서비스로 넘기는 얇은 층)
 ```
 
-Spring Boot 3.3.5 · Java 21 · Gradle 8.10.2 · Flyway · MySQL 8.4. Spring Security 는 쓰지 않고 `spring-security-crypto`(bcrypt)만 씁니다 — 인증은 `SessionFilter`, 권한은 `PermissionInterceptor` 두 곳에 있습니다.
+Spring Boot 3.3.5 · Java 21 · Gradle 8.10.2 · Flyway · MySQL 8.4 · Redis 7.4 (Lettuce · `StringRedisTemplate`). Spring Security 는 쓰지 않고 `spring-security-crypto`(bcrypt)만 씁니다 — 인증은 `SessionFilter`, 권한은 `PermissionInterceptor` 두 곳에 있습니다.
 
 ### 8.2 환경변수
 
 | 이름 | 내용 | 기본값 |
 |---|---|---|
 | `DB_HOST` | MySQL 호스트 | (필수) |
-| `CONCERT_BASE_URL` · `CATALOG_BASE_URL` · `MEMBER_BASE_URL` · `PAYMENT_BASE_URL` | 서비스 주소. ✏️ 11/16 운영은 4개 모두 `$(LINK_BASE_URL)` (`manifests` 의 `services/studio/deployment.yaml`) | `http://concert:8083` 등 |
+| `REDIS_HOST` | Redis 호스트 (포트 6379) | (필수) |
+| `CONCERT_BASE_URL` · `CATALOG_BASE_URL` · `MEMBER_BASE_URL` · `PAYMENT_BASE_URL` | 서비스 주소. ✏️ 11/16 운영은 4개 모두 같은 값 (`manifests-kt` `compose.yml` 의 `x-link-base-url`) | `http://concert:8083` 등 |
 | `GPU_BASE_URL` | GPU 서버 주소 (WireGuard 피어). 비면 무대 검증이 `FAILED` | 없음 |
 | `STUDIO_ALLOWED_ORIGINS` | 관리자 화면 출처 (쉼표 구분). 같은 출처면 비움 | 없음 |
 | `STUDIO_COOKIE_SAMESITE` | 관리자 화면이 다른 사이트에 있으면 `None` | `Strict` |
@@ -325,6 +337,7 @@ Spring Boot 3.3.5 · Java 21 · Gradle 8.10.2 · Flyway · MySQL 8.4. Spring Sec
 | 파일 | 내용 |
 |---|---|
 | `db.password` | `studio_app` 계정 비밀번호 |
+| `redis.password` | Redis 비밀번호 (KT 의 Redis 는 `--requirepass`) |
 | `internal.shared-secret` | 내부 토큰 서명 키 — 🔴 AWS 서비스들과 같은 값이어야 합니다 |
 | `totp.encryption-key` | OTP 비밀키 암호화 키 (base64 · 32바이트). 🔴 바꾸면 모든 계정의 OTP 를 다시 등록해야 합니다 |
 | `gpu.token` | GPU 서버와 맞춘 토큰 |
@@ -336,7 +349,7 @@ Studio 는 KT 전용 Secret 만 마운트합니다. AWS 서비스들의 `app-sec
 
 ```bash
 ./local/setup-local.sh                       # local-secrets/ 생성 (커밋되지 않음) · 첫 마스터 비밀번호 출력
-docker compose -f local/compose.yml up -d    # MySQL 8.4 → 127.0.0.1:3307
+docker compose -f local/compose.yml up -d    # MySQL 8.4 → 127.0.0.1:3307 · Redis 7.4 → 127.0.0.1:6382 (✏️ 11/16)
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 ```
 
@@ -362,17 +375,18 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | **payment** | `admin-issuers: [studio]` · `GET /internal/admin/payments/users/{userId}` |
 | **Gateway** | 없음 — Studio 는 Gateway 를 거치지 않습니다 |
 
-**KT 배포 — ✏️ 2026-11-16 KT Cloud 를 받아 만든 것** (KT 는 독립 클러스터 · 실제 VM 에서는 아직 돌려 보지 않음)
+**KT 배포 — ✏️ 2026-11-16 KT Cloud 를 받아 만든 것** (KT 는 VM 한 대의 docker compose · 맥 docker 로 확인 · 실제 VM 에서는 아직 돌려 보지 않음)
 
 | 대상 | 내용 |
 |---|---|
-| ☑ **manifests** | `services/studio` (라벨 `app: studio` · replicas 1 · Recreate · Secret `studio-secrets` · 이미지 Docker Hub `catomat0/indig-studio`). 🔴 이 레포의 `apps/` 에는 없고 KT 의 ArgoCD 만 읽습니다 |
+| ☑ **manifests-kt** | `compose.yml` — mysql · redis · studio · prometheus · grafana · kt-tunnel. Studio 는 1대 · 비밀 값은 VM 의 `/opt/indig/secrets/studio` → `/etc/secrets`. 전환 한 줄 `x-link-base-url`. 배포는 `deploy` 워크플로(KT 의 self-hosted runner · `docker compose up --wait`) |
 | ☑ **manifests** | `services/studio-link` — 관리자 터널 cloudflared (AWS `apps/studio-link.yaml` · PC 는 manifests-onprem). concert · catalog · member · payment NetworkPolicy 에 `app: studio-link` 인그레스 (concert 의 `app: studio` 규칙은 이것으로 바꿈) |
-| ☑ **manifests-kt** (새 레포) | k3s · ArgoCD · MySQL 8.4 (`studio` · `studio_app` — 이미지가 첫 기동 때 만듦) · KT 터널(`admin.indig.co.kr` → Studio) · 전환 한 줄 · 시크릿 스크립트 · GPU WireGuard 스크립트 |
-| ☑ **CI** | deploy 잡 — Docker Hub push(amd64 · arm64) · `manifests` 의 `services/studio` 태그 커밋. ☐ Environment `deploy` 에 `DOCKERHUB_USERNAME`(변수) · `DOCKERHUB_TOKEN` · `MANIFESTS_DEPLOY_KEY` 등록 |
+| ☑ **manifests-kt** | MySQL 8.4 (`studio` · `studio_app` — 이미지가 첫 기동 때 만듦) · Redis 7.4 · KT 터널(`admin` · `grafana` · `metrics.indig.co.kr`) · 비밀 값 스크립트(`make-secrets.sh` · `send.sh`) · VM 설치(`setup.sh` — Docker · runner) · GPU WireGuard(`wireguard.sh`) |
+| ☑ **manifests** | `services/prometheus-agent` — AWS · PC 의 지표를 KT Prometheus 로 (Studio 와는 별개 · 같은 KT VM). ✏️ 11/16 `services/studio` 는 지웠습니다 (compose 로 옮김) |
+| ☑ **CI** | deploy 잡 — Docker Hub push(amd64 · arm64) · `manifests-kt` 의 `compose.yml` 태그 커밋. ☐ Environment `deploy` 에 `DOCKERHUB_TOKEN` · `MANIFESTS_KT_DEPLOY_KEY` 등록 (`DOCKERHUB_USERNAME` 변수는 등록함) |
 | ☐ **Cloudflare** | 터널 3개(`indig-kt` · `indig-link-aws` · `indig-link-onprem`) · 경로 규칙 · WAF ② 호스트 조건 + ③ · ④ (`manifests-kt` README "Cloudflare") |
-| ☐ **KT VM** | 방화벽 51820/udp(GPU) · `scripts/send.sh` → `install.sh` → 첫 마스터 로그인 |
-| ☐ **GPU** | WireGuard 피어 (`manifests-kt scripts/4-wireguard.sh`) · `gpu.base-url` |
+| ☐ **KT VM** | 방화벽(들어오는 22 · 51820/udp · 나가는 443 · 7844 등) · `scripts/send.sh` → 첫 배포 → 첫 마스터 로그인 |
+| ☐ **GPU** | WireGuard 피어 (`manifests-kt scripts/wireguard.sh`) · `compose.yml` 의 `GPU_BASE_URL` |
 
 옛 계획(KT 를 AWS 클러스터에 agent 노드로 붙이고 NAT ↔ KT WireGuard)은 쓰지 않습니다 — 노드는 한 클러스터에만 붙을 수 있어 AWS ↔ PC 전환이 안 됩니다.
 
@@ -390,14 +404,14 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 ## 10. 테스트
 
-`./gradlew test` — 21건 통과 · 건너뜀 0 (2026-11-13). 실제 MySQL 8.4 를 Testcontainers 로 띄우므로 Docker 가 필요합니다. AWS 서비스와 GPU 서버는 테스트 안의 가짜 HTTP 서버입니다.
+`./gradlew test` — 21건 통과 · 건너뜀 0 (2026-11-13 · ✏️ 11/16 Redis 로 옮긴 뒤 다시 통과). 실제 MySQL 8.4 · Redis 7.4(비밀번호 있음)를 Testcontainers 로 띄우므로 Docker 가 필요합니다. AWS 서비스와 GPU 서버는 테스트 안의 가짜 HTTP 서버입니다.
 
 | 테스트 | 건수 | 확인하는 것 |
 |---|---|---|
 | `AuthFlowTest` | 4 | 비밀번호 → OTP 등록 → 대시보드 · 같은 코드 재사용 거부 · 5회 실패 잠금 · 30분 무응답 / 8시간 만료 · 내 비밀번호 변경 |
 | `RbacTest` | 8 | 역할별 탭과 닿는 API(검표 포함 6개 역할) · 권한 밖은 없는 경로와 같은 404 + `DENIED` 기록 · 내부 토큰 `iss` / `aud` · 대상 오류 전달(401 로는 안 나감) · CSRF(막힌 요청도 기록) · 계정 관리와 즉시 반영 · 모든 핸들러의 권한 선언 · 검표 요청의 `checkerId` = 세션의 관리자 id |
 | `StageJobFlowTest` | 3 | GPU 검증 → 확인 → Concert 수신(확인 전에는 0건) · 값 수정 후 전송과 Concert 거절 뒤 재시도 · 잘못된 업로드 거절과 GPU 실패 표시 |
-| `StudioSchemaTest` | 3 | 마이그레이션이 V1(구조) · V2(값) 두 개뿐 · CHECK 값 = Java enum · DB 에 해시와 암호문만 있음 |
+| `StudioSchemaTest` | 3 | 마이그레이션이 V1(구조) · V2(값) 두 개뿐 · CHECK 값 = Java enum · DB 에 해시와 암호문만 있음 · ✏️ Redis 키는 `studio:auth:*` + 64자 해시이고 모두 만료가 걸림 · 세션 테이블이 MySQL 에 없음 |
 | `TotpTest` | 3 | RFC 6238 테스트 벡터 · 시계 오차 1단계 · base32 |
 
 로컬에서 직접 확인한 것: 앱 기동(Flyway 적용 · readiness UP) → 첫 마스터 생성 → 로그인 → OTP 등록 → `/me` 에 탭 6개(검표 추가 전 — 지금은 7개) → 세션 없이 401 · Concert 가 없을 때 503.
@@ -421,10 +435,10 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 1. **9장의 ☐ 항목**(Cloudflare 터널 · WAF · CI Environment · KT VM)이 먼저입니다. catalog · member · payment 의 `admin-issuers` 에는 `studio` 를 넣었습니다 — 그 버전이 배포돼 있지 않으면 그쪽 호출은 전부 502 입니다.
 2. **`internal.shared-secret` 은 AWS 와 같은 값**, 나머지 시크릿 4개는 KT 에서 새로 만듭니다. `totp.encryption-key` 는 잃어버리면 복구할 수 없으니 따로 보관합니다.
-3. ✏️ 11/16 **KT 에서 서비스에 닿는 주소**는 `https://link-aws.indig.co.kr` · `https://link-onprem.indig.co.kr` 입니다 (6.8). 부르는 쪽은 `manifests-kt` 의 `apps/studio.yaml` 한 줄로 바꿉니다.
+3. ✏️ 11/16 **KT 에서 서비스에 닿는 주소**는 `https://link-aws.indig.co.kr` · `https://link-onprem.indig.co.kr` 입니다 (6.8). 부르는 쪽은 `manifests-kt` 의 `compose.yml` 한 줄(`x-link-base-url`)로 바꿉니다.
 4. ✏️ 11/16 **관리자 화면**은 프론트(`https://indig.co.kr` · Vercel) 안에 있고 Studio 는 `https://admin.indig.co.kr` 입니다. 같은 사이트라 쿠키는 기본값 `Strict` 그대로, `STUDIO_ALLOWED_ORIGINS` 는 `https://indig.co.kr,https://www.indig.co.kr` 로 두었습니다. 🔴 로컬 화면(`localhost:5173`)에서 운영 Studio 를 부르면 다른 사이트라 쿠키가 가지 않습니다.
 5. **Studio 는 1대만 띄웁니다.** 무대 검증이 프로세스 안의 스레드에서 돌아서, 여러 대면 기동할 때 서로의 작업을 `FAILED` 로 닫습니다.
-6. ✏️ 11/16 CI 에 deploy 잡을 넣었습니다 (Docker Hub · `manifests` 태그 커밋). Environment `deploy` 를 등록하기 전에 main 에 머지하면 deploy 잡이 실패합니다 (9장).
+6. ✏️ 11/16 CI 에 deploy 잡을 넣었습니다 (Docker Hub · `manifests-kt` 의 `compose.yml` 태그 커밋). Environment `deploy` 의 secret 을 등록하기 전이나 manifests-kt main 에 `compose.yml` 이 들어가기 전에 이 레포를 main 에 머지하면 deploy 잡이 실패합니다 (9장).
 7. 첫 마스터로 로그인해 OTP 를 등록한 뒤 `bootstrap.master-password` 시크릿은 지워도 됩니다.
 8. Flyway 가 MySQL 8.4 를 "테스트한 버전(8.1)보다 새 버전" 이라고 경고합니다. 마이그레이션은 정상 적용됩니다.
 
@@ -452,15 +466,15 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | 2026-11-13 | concert · catalog · member · payment 에 Studio 가 부르는 관리자 API 와 `admin-issuers` 추가 (9장). KT 배포 · 수집기는 대기로 기록 |
 | 2026-11-13 | 결정 반영: 크롤링 이미지는 수집기가 S3 에 올리고 URL 을 넘기며 Concert 저장은 Studio 가 (6.4 · 12장 ③). 이전 설계 문서는 남기고 폐기 표시 (9장). 대기 문서 `docs/pending_studio_work.md` 는 할 일이 모두 정리되어 지움 (남은 일은 9장 · `indie-msa/docs/v2_후속_작업.md`) |
 | 2026-11-16 | KT 배포 설정: KT 는 독립 클러스터 · AWS / 온프레미스는 Cloudflare 관리자 터널(`link-aws` · `link-onprem`) · 전환은 `manifests-kt` 한 줄 · 입구 `admin.indig.co.kr` 도 터널 · CI deploy 잡 (9장 · 6.8) |
+| 2026-11-16 | KT 를 k3s 대신 docker compose 로 (MySQL · Redis · Studio · Prometheus · Grafana). 로그인 2단계 대기 · 세션을 MySQL 테이블에서 Redis 로 (`LoginChallengeStore` · `SessionStore` · V1 에서 테이블 2개 뺌 · 테스트에 Redis 컨테이너). CI 태그 커밋 대상을 `manifests-kt` 의 `compose.yml` 로. 테스트 21건 통과 · 맥 docker 로 compose 전체 기동 확인 |
 
 문서를 쓰다가 찾아 고친 것: CSRF 로 막힌 요청이 작업 기록에 남지 않던 문제 (인터셉터가 요청을 막으면 완료 콜백이 불리지 않음 → 막는 자리에서 직접 기록 · 테스트 추가).
 
 ## 부록 A. 관계
 
 ```
-admin_account 1 ─── N admin_login_challenge
-      │ 1 ───────── N admin_session
-      │ 1 ───────── N audit_log
+admin_account 1 ─── N audit_log
+      │           (2단계 대기 · 세션은 Redis — studio:auth:* · adminId 로만 가리킴)
       │ 1 ───────── N stage_job (requested_by · sent_by) 1 ─── N stage_job_image (ORIGINAL · RESULT 각 1)
 
 stage_job.venue_id ┄┄▶ Concert 의 venue (다른 DB · FK 없음)
