@@ -1,4 +1,4 @@
-# 로컬 MySQL — 운영(KT)과 같은 8.4. 다른 서비스의 PostgreSQL(5432)과 겹치지 않게 3307 로 엽니다
+# 로컬 MySQL · Redis — 운영(KT)과 같은 8.4 · 7.4. 다른 서비스의 PostgreSQL(5432) · Redis(6379~6381)와 겹치지 않게 3307 · 6382 로 엽니다
 # docker compose -f local/compose.yml up -d
 services:
   studio-mysql:
@@ -11,5 +11,9 @@ services:
       MYSQL_ROOT_PASSWORD: studio-local-root
     command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
     volumes: ["studio-mysql:/var/lib/mysql"]
+  studio-redis:                                # 로그인 2단계 대기 · 세션 — 디스크에 쓰지 않음
+    image: redis:7.4-alpine
+    ports: ["127.0.0.1:6382:6379"]
+    command: ["redis-server", "--requirepass", "studio-local-redis", "--save", "", "--appendonly", "no"]   # local/setup-local.sh 의 redis.password 와 같은 값
 volumes:
   studio-mysql:
