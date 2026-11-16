@@ -27,8 +27,8 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * AWS 서비스(Concert · Catalog · Member · Payment) 호출 — Studio 는 업무 DB 에 직접 붙지 않고 전부 여기로 읽고 씁니다.
- * KT 노드에서 WireGuard 터널을 건너가므로 느릴 수 있습니다 (제한 시간 app.services.read-timeout-ms).
+ * Concert · Catalog · Member · Payment 호출 (AWS 또는 온프레미스) — Studio 는 업무 DB 에 직접 붙지 않고 전부 여기로 읽고 씁니다.
+ * KT 에서 Cloudflare 관리자 터널(link-aws · link-onprem.indig.co.kr)을 건너가므로 느릴 수 있습니다 (제한 시간 app.services.read-timeout-ms).
  * <pre>
  * 붙이는 헤더  X-Internal-Token (iss=studio · aud=대상) · X-Admin-Id (누가 시켰나 — 대상 서비스의 기록용) · X-Correlation-Id
  * 성공        ApiResponse 의 result 만 꺼내 돌려줍니다

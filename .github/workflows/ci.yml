@@ -1,5 +1,6 @@
-# 빌드 · 테스트 (MySQL 8.4 는 Testcontainers 가 띄웁니다).
-# TODO(KT): 이미지 push · 매니페스트 태그 커밋(deploy 잡)은 KT 레지스트리와 manifests 의 services/studio 가 정해지면 추가합니다 — docs/v2_studio_service_re.md 12장
+# 빌드 · 테스트 (MySQL 8.4 는 Testcontainers 가 띄웁니다) · Docker Hub push (amd64 · arm64) · 매니페스트 레포 이미지 태그 커밋
+# Studio 는 KT 클러스터에서만 돕니다 — ECR 에는 올리지 않습니다. KT 의 ArgoCD 가 manifests 의 services/studio 를 읽습니다 (manifests-kt)
+# 22A — 키는 deploy 잡만 받습니다. MANIFESTS_DEPLOY_KEY · DOCKERHUB_TOKEN 은 Environment `deploy` (배포 브랜치 main 만) 의 secret — PR 실행(test 잡)에는 없습니다
 name: ci
 on:
   push: { branches: [main, develop] }
@@ -17,3 +18,47 @@ jobs:
         with: { distribution: temurin, java-version: '21' }
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test --no-daemon
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: deploy      # ★ 다른 브랜치에서 이 잡을 고쳐 돌려도 GitHub 이 거절
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}     # Environment `deploy` 의 변수
+          password: ${{ secrets.DOCKERHUB_TOKEN }}     # Environment `deploy` 의 secret (push 토큰)
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64        # ★ KT VM 의 아키텍처를 가리지 않게
+          push: true
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/indig-studio:${{ github.sha }}   # ★ 커밋 SHA — latest 금지
+
+      # 매니페스트 레포의 이미지 태그를 고쳐 main 에 직접 커밋 → KT 의 ArgoCD 가 배포 (다른 서비스 CI 와 같은 방식)
+      - uses: actions/checkout@v4
+        with:
+          repository: SW-Team07-2026-2/manifests
+          ref: main                                        # 기본 브랜치(develop)가 아니라 ArgoCD 가 보는 main 에 커밋
+          ssh-key: ${{ secrets.MANIFESTS_DEPLOY_KEY }}   # 매니페스트 레포 쓰기 전용 — 클러스터 권한은 0
+          path: manifests
+      - working-directory: manifests
+        env:
+          FILE: services/studio/kustomization.yaml
+          IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/indig-studio
+          TAG: ${{ github.sha }}
+        run: |
+          sed -i -E "s|^([[:space:]]*newName:).*|\1 ${IMAGE}|; s|^([[:space:]]*newTag:).*|\1 \"${TAG}\"|" "$FILE"
+          git diff --quiet && exit 0                   # 같은 커밋 재실행 — 바뀐 게 없음
+          git config user.name "indie-ci"
+          git config user.email "indie-ci@users.noreply.github.com"
+          git commit -qam "deploy(studio): ${TAG::7}"
+          for i in 1 2 3; do                           # 다른 서비스 CI 와 동시에 push 하면 거절 → rebase 후 재시도
+            git pull -q --rebase && git push -q && exit 0
+            sleep $((RANDOM % 5 + 1))
+          done
+          exit 1
