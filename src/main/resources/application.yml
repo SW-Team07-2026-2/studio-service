@@ -60,7 +60,7 @@ app:
   internal-token:                             # 나가는 호출 (Studio → Concert · Catalog · Member · Payment)
     issuer: studio
     ttl-seconds: 300
-  services:                                   # AWS 서비스 — KT 노드에서 WireGuard 터널을 건너갑니다
+  services:                                   # AWS · 온프레미스 서비스 — KT 에서 Cloudflare 관리자 터널(link-aws · link-onprem.indig.co.kr)을 건너갑니다 · 운영은 4개가 같은 주소 (manifests services/studio)
     concert: ${CONCERT_BASE_URL:http://concert:8083}
     catalog: ${CATALOG_BASE_URL:http://catalog:8082}
     member: ${MEMBER_BASE_URL:http://member:8081}

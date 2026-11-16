@@ -2,7 +2,7 @@
 
 > **상태: 구현 완료 · main 머지 (2026-11-13, `6c1d371`) · 배포 안 됨.** 같은 날 검표 역할을 추가하고 마이그레이션을 두 파일(V1 구조 · V2 값)로 정리했습니다.
 > 테스트 21건 통과 (건너뜀 0 · Docker 필요). Studio 가 부르는 내부 API 는 concert · catalog · member · payment 에 모두 만들었습니다 (9장).
-> 🔴 **KT Cloud 를 아직 받지 못해 배포는 대기입니다** (매니페스트 · MySQL · WireGuard — 9장 · 12장). 실제 GPU 서버 · 실제 AWS 서비스 연동도 확인하지 못했습니다 (10장).
+> ✏️ **11/16 KT Cloud 를 받아 배포 설정을 만들었습니다** — KT 는 AWS · PC 클러스터에 붙지 않는 **독립 클러스터**이고, AWS 또는 온프레미스(PC)를 Cloudflare 관리자 터널로 부릅니다 (`SW-Team07-2026-2/manifests-kt` README · 9장). 🔴 실제 KT VM · GPU 서버 · 서비스 연동은 아직 확인하지 못했습니다 (10장).
 > 전 서비스 공통의 남은 일은 `indie-msa/docs/v2_후속_작업.md`, 전체 API 는 `indie-msa/docs/v2_API_명세서.md`, 관리자 화면 확인 사항은 `indie-msa/docs/v2_프론트_체크사항.md` 에 있습니다.
 
 ## 0. 한눈에 보기
@@ -11,7 +11,7 @@
 - **로그인은 2단계입니다.** 1차 아이디 · 비밀번호(DB · bcrypt) → 2차 OTP(TOTP) → 대시보드. 첫 로그인 때 OTP 를 등록합니다.
 - **계정마다 역할이 하나입니다.** `MASTER` · `STAGE`(무대) · `CONCERT`(공연) · `GOODS`(굿즈 · 피지컬 앨범) · `CS` · `CHECKER`(검표).
 - **하위 관리자는 서로를 모릅니다.** 탭은 `/me` 가 내려준 것만 그리고, 권한 밖 API 는 없는 경로와 똑같은 404 가 나갑니다.
-- **업무 데이터는 Studio 에 없습니다.** 공연 · 상품 · 회원 · 결제는 AWS 의 Concert · Catalog · Member · Payment 내부 API 로 읽고 씁니다 (`X-Internal-Token`, iss=`studio`).
+- **업무 데이터는 Studio 에 없습니다.** 공연 · 상품 · 회원 · 결제는 Concert · Catalog · Member · Payment 내부 API 로 읽고 씁니다 (`X-Internal-Token`, iss=`studio`). 서비스는 AWS 또는 온프레미스(PC)에 있고, KT 에서 `https://link-aws.indig.co.kr` · `https://link-onprem.indig.co.kr` 중 하나를 부릅니다 — 전환은 `manifests-kt` 의 `apps/studio.yaml` 한 줄 (6.8).
 - **무대 그리기:** 화면에서 그린 값 + 도면 사진 → Studio(KT) → 개인 GPU 서버(WireGuard) 검증 → 사진과 값이 화면으로 → 무대 관리자가 확인 → Concert 로 전송. **S3 는 거치지 않습니다.** 사진은 Studio DB 에 둡니다.
 - **관리자의 요청은 전부 `audit_log` 에 남습니다** (조회 · 권한 밖 시도 포함). 검색어 · 본문 · 개인정보 값은 남기지 않습니다.
 - 테이블은 6개입니다: `admin_account` · `admin_login_challenge` · `admin_session` · `stage_job` · `stage_job_image` · `audit_log`.
@@ -26,7 +26,7 @@
   - 관리자 화면(프론트) — API 와 화면이 알아야 할 것만 정리했습니다 (11장)
   - 다른 서비스의 수정 — 처음에는 목록만 남겼고, 같은 날 각 서비스에서 만들었습니다 (9장)
   - GPU 서버 구현 — 요청 · 응답 모양까지만 정했습니다 (5.3)
-  - KT 배포 (매니페스트 · MySQL · WireGuard · 시크릿) — KT Cloud 를 받은 뒤에 합니다 (9장 · 12장)
+  - ~~KT 배포~~ — ✏️ 11/16 만들었습니다 (`manifests` 의 `services/studio` · `services/studio-link` · `manifests-kt` · 9장)
   - 수집기(크롤링 · LLM 전처리)
 
 ## 2. 테이블 정의
@@ -275,6 +275,7 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 - 대상의 401 · 403 · 5xx 는 502 `UPSTREAM_ERROR` 입니다. 🔴 401 을 그대로 내보내면 화면이 관리자를 로그아웃시키기 때문입니다.
 - 연결 실패 · 시간 초과(연결 2초 · 응답 10초)는 503 `UPSTREAM_UNAVAILABLE` 입니다.
 - 공개 조회(`/api/concerts/**` · `/api/catalog/**`)도 Gateway 가 아니라 서비스를 직접 부릅니다.
+- ✏️ 11/16 운영에서는 4개 주소가 모두 `$(LINK_BASE_URL)` 하나입니다 (`https://link-<환경>.indig.co.kr`). 그 환경의 cloudflared(`studio-link`)가 경로로 서비스를 나눕니다 — `/internal/admin/concerts` · `/api/concerts` → concert, `…/catalog` → catalog, `/internal/admin/members` → member, `/internal/admin/payments` → payment. 그 밖의 경로는 터널이 404 로 끝내고, KT 공인 IP 밖에서 온 요청은 Cloudflare WAF 가 막습니다. 🔴 Studio 가 새 경로 앞부분을 부르면 터널 규칙(`manifests-kt` README "Cloudflare")에도 더해야 합니다.
 
 ## 7. 오류 코드
 
@@ -313,7 +314,7 @@ Spring Boot 3.3.5 · Java 21 · Gradle 8.10.2 · Flyway · MySQL 8.4. Spring Sec
 | 이름 | 내용 | 기본값 |
 |---|---|---|
 | `DB_HOST` | MySQL 호스트 | (필수) |
-| `CONCERT_BASE_URL` · `CATALOG_BASE_URL` · `MEMBER_BASE_URL` · `PAYMENT_BASE_URL` | AWS 서비스 주소 | `http://concert:8083` 등 |
+| `CONCERT_BASE_URL` · `CATALOG_BASE_URL` · `MEMBER_BASE_URL` · `PAYMENT_BASE_URL` | 서비스 주소. ✏️ 11/16 운영은 4개 모두 `$(LINK_BASE_URL)` (`manifests` 의 `services/studio/deployment.yaml`) | `http://concert:8083` 등 |
 | `GPU_BASE_URL` | GPU 서버 주소 (WireGuard 피어). 비면 무대 검증이 `FAILED` | 없음 |
 | `STUDIO_ALLOWED_ORIGINS` | 관리자 화면 출처 (쉼표 구분). 같은 출처면 비움 | 없음 |
 | `STUDIO_COOKIE_SAMESITE` | 관리자 화면이 다른 사이트에 있으면 `None` | `Strict` |
@@ -361,16 +362,19 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | **payment** | `admin-issuers: [studio]` · `GET /internal/admin/payments/users/{userId}` |
 | **Gateway** | 없음 — Studio 는 Gateway 를 거치지 않습니다 |
 
-**대기 — KT Cloud 를 받은 뒤 (2026-11-13 결정: 지금은 작업하지 않고 기록만)**
+**KT 배포 — ✏️ 2026-11-16 KT Cloud 를 받아 만든 것** (KT 는 독립 클러스터 · 실제 VM 에서는 아직 돌려 보지 않음)
 
-| 대상 | 할 일 |
+| 대상 | 내용 |
 |---|---|
-| ☐ **manifests** | `services/studio` (라벨 `app: studio`) · 관리자 화면 Ingress · KT 전용 Secret (8.3) |
-| ☐ **manifests** | catalog · member · payment 의 NetworkPolicy 에 `app: studio` 허용 (concert 는 이미 허용). 🔴 이것이 없으면 Studio 가 떠도 세 서비스 호출이 막힙니다 |
-| ☐ **KT MySQL** | DB `studio` · 계정 `studio_app` |
-| ☐ **인프라** | WireGuard: KT ↔ GPU 서버 피어, KT ↔ AWS 서비스 경로. 이미지 레지스트리 |
-| ☐ **CI** | 이미지 push · 매니페스트 태그 커밋 (`.github/workflows/ci.yml` 의 TODO) |
-| ☐ **manifests** | `scripts/apply-kt-secrets.sh` 의 Studio 항목 (TODO 로 남아 있음) |
+| ☑ **manifests** | `services/studio` (라벨 `app: studio` · replicas 1 · Recreate · Secret `studio-secrets` · 이미지 Docker Hub `catomat0/indig-studio`). 🔴 이 레포의 `apps/` 에는 없고 KT 의 ArgoCD 만 읽습니다 |
+| ☑ **manifests** | `services/studio-link` — 관리자 터널 cloudflared (AWS `apps/studio-link.yaml` · PC 는 manifests-onprem). concert · catalog · member · payment NetworkPolicy 에 `app: studio-link` 인그레스 (concert 의 `app: studio` 규칙은 이것으로 바꿈) |
+| ☑ **manifests-kt** (새 레포) | k3s · ArgoCD · MySQL 8.4 (`studio` · `studio_app` — 이미지가 첫 기동 때 만듦) · KT 터널(`admin.indig.co.kr` → Studio) · 전환 한 줄 · 시크릿 스크립트 · GPU WireGuard 스크립트 |
+| ☑ **CI** | deploy 잡 — Docker Hub push(amd64 · arm64) · `manifests` 의 `services/studio` 태그 커밋. ☐ Environment `deploy` 에 `DOCKERHUB_USERNAME`(변수) · `DOCKERHUB_TOKEN` · `MANIFESTS_DEPLOY_KEY` 등록 |
+| ☐ **Cloudflare** | 터널 3개(`indig-kt` · `indig-link-aws` · `indig-link-onprem`) · 경로 규칙 · WAF ② 호스트 조건 + ③ · ④ (`manifests-kt` README "Cloudflare") |
+| ☐ **KT VM** | 방화벽 51820/udp(GPU) · `scripts/send.sh` → `install.sh` → 첫 마스터 로그인 |
+| ☐ **GPU** | WireGuard 피어 (`manifests-kt scripts/4-wireguard.sh`) · `gpu.base-url` |
+
+옛 계획(KT 를 AWS 클러스터에 agent 노드로 붙이고 NAT ↔ KT WireGuard)은 쓰지 않습니다 — 노드는 한 클러스터에만 붙을 수 있어 AWS ↔ PC 전환이 안 됩니다.
 
 **대기 — 그 밖**
 
@@ -415,12 +419,12 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 **배포 전 확인**
 
-1. **9장의 대기 항목**(매니페스트 · NetworkPolicy · KT MySQL · WireGuard)이 먼저입니다. catalog · member · payment 의 `admin-issuers` 에는 `studio` 를 넣었습니다 — 그 버전이 배포돼 있지 않으면 그쪽 호출은 전부 502 입니다.
+1. **9장의 ☐ 항목**(Cloudflare 터널 · WAF · CI Environment · KT VM)이 먼저입니다. catalog · member · payment 의 `admin-issuers` 에는 `studio` 를 넣었습니다 — 그 버전이 배포돼 있지 않으면 그쪽 호출은 전부 502 입니다.
 2. **`internal.shared-secret` 은 AWS 와 같은 값**, 나머지 시크릿 4개는 KT 에서 새로 만듭니다. `totp.encryption-key` 는 잃어버리면 복구할 수 없으니 따로 보관합니다.
-3. **KT 에서 AWS 서비스에 닿는 주소**를 정해 `*_BASE_URL` 에 넣어야 합니다. 기본값(`http://concert:8083`)은 같은 클러스터 DNS 를 가정한 값입니다.
-4. **관리자 화면의 주소**에 따라 `STUDIO_ALLOWED_ORIGINS` · `STUDIO_COOKIE_SAMESITE` 를 정합니다. 화면이 다른 사이트(예: Vercel)에 있으면 `None` 이어야 쿠키가 갑니다.
+3. ✏️ 11/16 **KT 에서 서비스에 닿는 주소**는 `https://link-aws.indig.co.kr` · `https://link-onprem.indig.co.kr` 입니다 (6.8). 부르는 쪽은 `manifests-kt` 의 `apps/studio.yaml` 한 줄로 바꿉니다.
+4. ✏️ 11/16 **관리자 화면**은 프론트(`https://indig.co.kr` · Vercel) 안에 있고 Studio 는 `https://admin.indig.co.kr` 입니다. 같은 사이트라 쿠키는 기본값 `Strict` 그대로, `STUDIO_ALLOWED_ORIGINS` 는 `https://indig.co.kr,https://www.indig.co.kr` 로 두었습니다. 🔴 로컬 화면(`localhost:5173`)에서 운영 Studio 를 부르면 다른 사이트라 쿠키가 가지 않습니다.
 5. **Studio 는 1대만 띄웁니다.** 무대 검증이 프로세스 안의 스레드에서 돌아서, 여러 대면 기동할 때 서로의 작업을 `FAILED` 로 닫습니다.
-6. CI 는 테스트만 합니다. 이미지 push · 매니페스트 태그 커밋(deploy 잡)은 KT 레지스트리와 `services/studio` 가 정해지면 추가합니다 (`.github/workflows/ci.yml` 의 TODO).
+6. ✏️ 11/16 CI 에 deploy 잡을 넣었습니다 (Docker Hub · `manifests` 태그 커밋). Environment `deploy` 를 등록하기 전에 main 에 머지하면 deploy 잡이 실패합니다 (9장).
 7. 첫 마스터로 로그인해 OTP 를 등록한 뒤 `bootstrap.master-password` 시크릿은 지워도 됩니다.
 8. Flyway 가 MySQL 8.4 를 "테스트한 버전(8.1)보다 새 버전" 이라고 경고합니다. 마이그레이션은 정상 적용됩니다.
 
@@ -447,6 +451,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | 2026-11-13 | 검표 역할(`CHECKER` · 권한 `CHECK_IN` · 탭 `checkin`) 추가. 마이그레이션을 `V1`(구조) · `V2`(값) 두 파일로 정리. 테스트 21건 |
 | 2026-11-13 | concert · catalog · member · payment 에 Studio 가 부르는 관리자 API 와 `admin-issuers` 추가 (9장). KT 배포 · 수집기는 대기로 기록 |
 | 2026-11-13 | 결정 반영: 크롤링 이미지는 수집기가 S3 에 올리고 URL 을 넘기며 Concert 저장은 Studio 가 (6.4 · 12장 ③). 이전 설계 문서는 남기고 폐기 표시 (9장). 대기 문서 `docs/pending_studio_work.md` 는 할 일이 모두 정리되어 지움 (남은 일은 9장 · `indie-msa/docs/v2_후속_작업.md`) |
+| 2026-11-16 | KT 배포 설정: KT 는 독립 클러스터 · AWS / 온프레미스는 Cloudflare 관리자 터널(`link-aws` · `link-onprem`) · 전환은 `manifests-kt` 한 줄 · 입구 `admin.indig.co.kr` 도 터널 · CI deploy 잡 (9장 · 6.8) |
 
 문서를 쓰다가 찾아 고친 것: CSRF 로 막힌 요청이 작업 기록에 남지 않던 문제 (인터셉터가 요청을 막으면 완료 콜백이 불리지 않음 → 막는 자리에서 직접 기록 · 테스트 추가).
 
