@@ -39,16 +39,16 @@ public class AuthController {
         this.cookies = cookies;
     }
 
-    /** 1차 — 아이디 · 비밀번호. 통과해도 아직 로그인이 아닙니다 */
+    /** 1차 — 아이디 · 비밀번호. 통과하면 인증 코드 메일을 보냅니다. 아직 로그인이 아닙니다 */
     @PostMapping("/api/studio/auth/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
         AuthService.LoginResult result = authService.login(request.loginId(), request.password(), ClientIp.of(http));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookies.challenge(result.challengeToken()))
-                .body(ApiResponse.onSuccess(new LoginResponse(result.next(), result.otpauthUri(), result.secret())));
+                .body(ApiResponse.onSuccess(new LoginResponse("OTP", result.sentTo())));
     }
 
-    /** 2차 — OTP 6자리. 통과하면 세션 쿠키가 내려가고 대시보드에 들어갈 수 있습니다 */
+    /** 2차 — 메일로 받은 인증 코드 6자리. 통과하면 세션 쿠키가 내려가고 대시보드에 들어갈 수 있습니다 */
     @PostMapping("/api/studio/auth/otp")
     public ResponseEntity<ApiResponse<MeResponse>> otp(@Valid @RequestBody OtpRequest request,
                                                        @CookieValue(name = SessionCookies.CHALLENGE, required = false) String challenge,

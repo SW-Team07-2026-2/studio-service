@@ -4,7 +4,8 @@
 -- 🔴 마이그레이션은 이 파일(V1 구조)과 V2(값) 두 개만 둡니다 — 구조를 바꾸면 이 파일을 고치고 DB 스키마를 비운 뒤 다시 올립니다.
 --    적용된 뒤에 파일만 고치면 Flyway 체크섬 검증에 걸려 서비스가 뜨지 않습니다.
 
--- 관리자 계정 — 아이디 · 비밀번호(bcrypt) · OTP 비밀키(AES-GCM 암호문). 계정마다 역할 하나.
+-- 관리자 계정 — 아이디 · 비밀번호(bcrypt) · 로그인 인증 코드를 받을 메일. 계정마다 역할 하나.
+-- 역할별 공용 계정이면 담당자 메일을 모두 넣습니다 (같은 코드가 모두에게 갑니다).
 -- 🔴 행을 지우지 않습니다 (audit_log · stage_job 과 AWS 쪽 기록이 이 id 를 가리킵니다). 퇴사 · 업무 종료는 DISABLED.
 CREATE TABLE admin_account (
     id              BIGINT         NOT NULL AUTO_INCREMENT,
@@ -13,9 +14,8 @@ CREATE TABLE admin_account (
     password_hash   VARCHAR(60)    NOT NULL,              -- bcrypt
     role            VARCHAR(16)    NOT NULL,
     status          VARCHAR(16)    NOT NULL,
-    totp_secret_enc VARBINARY(128) NULL,                  -- NULL = OTP 미등록 → 다음 로그인 때 등록
-    totp_last_step  BIGINT         NULL,                  -- 마지막으로 통과한 30초 단계 (같은 코드 재사용 거부)
-    failed_count    INT            NOT NULL DEFAULT 0,    -- 비밀번호 · OTP 연속 실패
+    otp_emails      VARCHAR(512)   NOT NULL,              -- 인증 코드를 받을 메일 1~5개 (쉼표 구분)
+    failed_count    INT            NOT NULL DEFAULT 0,    -- 비밀번호 · 인증 코드 연속 실패
     locked_until    DATETIME(3)    NULL,
     last_login_at   DATETIME(3)    NULL,
     created_at      DATETIME(3)    NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE admin_account (
     CONSTRAINT uq_admin_login_id UNIQUE (login_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
--- 로그인 2단계 대기(OTP 입력 전 5분) · 로그인 세션은 MySQL 이 아니라 Redis 에 둡니다 (LoginChallengeStore · SessionStore).
+-- 로그인 2단계 대기(메일 인증 코드 입력 전 5분) · 로그인 세션은 MySQL 이 아니라 Redis 에 둡니다 (LoginChallengeStore · SessionStore).
 
 -- 무대 그리기 작업 — 관리자가 그린 도면을 GPU 서버가 검증하고, 관리자가 결과를 확인해 Concert 로 보냅니다.
 CREATE TABLE stage_job (

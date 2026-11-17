@@ -67,7 +67,7 @@ class StudioSchemaTest extends IntegrationTest {
     @Test
     void storesOnlyHashesAndCiphertext() throws Exception {
         loginMaster();                                       // 세션 하나
-        mvc.perform(post("/api/studio/auth/login").contentType(MediaType.APPLICATION_JSON)   // OTP 를 넣지 않은 2단계 대기 하나
+        mvc.perform(post("/api/studio/auth/login").contentType(MediaType.APPLICATION_JSON)   // 인증 코드를 넣지 않은 2단계 대기 하나
                 .content(json(Map.of("loginId", MASTER_ID, "password", MASTER_PASSWORD)))).andExpect(status().isOk());
 
         // Redis — 세션 · 2단계 대기는 쿠키 값의 해시(64자 hex)만 키로 두고, 모두 만료가 걸려 있습니다 (최대 로그인 + 8시간)
@@ -76,11 +76,14 @@ class StudioSchemaTest extends IntegrationTest {
                 .allMatch(k -> k.matches("studio:auth:(session|challenge):[0-9a-f]{64}|studio:auth:admin-sessions:[0-9]+"));
         assertThat(keys).allSatisfy(k -> assertThat(redis.getExpire(k)).isBetween(1L, Duration.ofHours(8).toSeconds()));
         assertThat(jdbc.queryForList("show tables", String.class)).doesNotContain("admin_session", "admin_login_challenge");
+        // 2단계 대기에는 인증 코드 원문이 아니라 해시만
+        String challengeKey = keys.stream().filter(k -> k.startsWith("studio:auth:challenge:")).findFirst().orElseThrow();
+        assertThat((String) redis.opsForHash().get(challengeKey, "code")).matches("[0-9a-f]{64}");
 
-        // MySQL — 비밀번호는 bcrypt, OTP 비밀키는 암호문(IV 12 + 20 + 태그 16)
+        // MySQL — 비밀번호는 bcrypt, 인증 코드 받을 메일은 소문자 · 쉼표 구분 (인증 코드는 MySQL 에 없습니다)
         assertThat(jdbc.queryForList("select password_hash from admin_account", String.class)).isNotEmpty().allMatch(h -> h.startsWith("$2a$"));
-        assertThat(jdbc.queryForList("select length(totp_secret_enc) from admin_account where totp_secret_enc is not null", Integer.class))
-                .allMatch(n -> n == 48);
+        assertThat(jdbc.queryForList("select otp_emails from admin_account", String.class))
+                .isNotEmpty().allMatch(e -> e.matches("[^@\\s,]+@[^@\\s,]+(,[^@\\s,]+@[^@\\s,]+)*") && e.equals(e.toLowerCase()));
     }
 
     private static Set<String> names(Enum<?>[] values) {

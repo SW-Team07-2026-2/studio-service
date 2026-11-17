@@ -21,6 +21,13 @@ public final class Tokens {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    /** 무작위 숫자 count 자리 (앞자리 0 포함) */
+    public static String digits(int count) {
+        StringBuilder sb = new StringBuilder(count);
+        for (int i = 0; i < count; i++) sb.append(RANDOM.nextInt(10));
+        return sb.toString();
+    }
+
     public static String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
