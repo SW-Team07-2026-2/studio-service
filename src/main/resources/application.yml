@@ -75,6 +75,7 @@ app:
     lock-minutes: 15
     bcrypt-strength: 12
     mail-from: ${STUDIO_MAIL_FROM:indig <noreply@indig.co.kr>}   # Gmail "다른 주소에서 메일 보내기"에 등록한 주소여야 그대로 나갑니다
+  # 들어오는 크롤러 호출(/internal/crawl/**)의 키는 configtree crawler.shared-secret — 없으면 그 경로만 401 (CrawlerTokenFilter)
   internal-token:                             # 나가는 호출 (Studio → Concert · Catalog · Member · Payment)
     issuer: studio
     ttl-seconds: 300

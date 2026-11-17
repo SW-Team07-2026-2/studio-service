@@ -69,12 +69,17 @@ public class ServiceClient {
         return call(target, method, path, null, body, admin);
     }
 
+    /** 크롤러가 넘긴 것 (CrawlIntakeController) — 시킨 관리자가 없어 X-Admin-Id 를 붙이지 않습니다 */
+    public JsonNode sendAsCrawler(Target target, HttpMethod method, String path, Object body) {
+        return call(target, method, path, null, body, null);
+    }
+
     private JsonNode call(Target target, HttpMethod method, String path, MultiValueMap<String, String> query, Object body,
                           AdminPrincipal admin) {
         RestClient.RequestBodySpec request = clients.get(target).method(method)
                 .uri(b -> b.path(path).queryParams(query == null ? NO_QUERY : query).build())
-                .header(TOKEN_HEADER, tokenIssuer.issue(target.name().toLowerCase()))
-                .header(ADMIN_HEADER, String.valueOf(admin.id()));
+                .header(TOKEN_HEADER, tokenIssuer.issue(target.name().toLowerCase()));
+        if (admin != null) request.header(ADMIN_HEADER, String.valueOf(admin.id()));
         String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
         if (correlationId != null) request.header(CorrelationIdFilter.HEADER, correlationId);
         if (body != null) request.contentType(MediaType.APPLICATION_JSON).body(body);
