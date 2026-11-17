@@ -1,4 +1,4 @@
-# 로컬 MySQL · Redis — 운영(KT)과 같은 8.4 · 7.4. 다른 서비스의 PostgreSQL(5432) · Redis(6379~6381)와 겹치지 않게 3307 · 6382 로 엽니다
+# 로컬 MySQL · Redis · 메일함 — 운영(KT)과 같은 8.4 · 7.4. 다른 서비스의 PostgreSQL(5432) · Redis(6379~6381)와 겹치지 않게 3307 · 6382 로 엽니다
 # docker compose -f local/compose.yml up -d
 services:
   studio-mysql:
@@ -15,5 +15,8 @@ services:
     image: redis:7.4-alpine
     ports: ["127.0.0.1:6382:6379"]
     command: ["redis-server", "--requirepass", "studio-local-redis", "--save", "", "--appendonly", "no"]   # local/setup-local.sh 의 redis.password 와 같은 값
+  studio-mail:                                 # 로그인 인증 코드 메일을 받는 가짜 SMTP — 화면 http://localhost:8025 (밖으로 보내지 않음)
+    image: axllent/mailpit:v1.21
+    ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
 volumes:
   studio-mysql:

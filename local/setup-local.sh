@@ -15,9 +15,14 @@ if [ -f ../concert-service/local-secrets/internal.shared-secret ]; then
 else
   put internal.shared-secret "$(openssl rand -hex 32)"
 fi
-put totp.encryption-key "$(openssl rand -base64 32)"
 put gpu.token "$(openssl rand -hex 16)"
-put bootstrap.master-password "$(openssl rand -base64 18)"
+# 관리자 계정 — 줄마다 아이디,이름,역할,메일(;),bcrypt (AdminSeeder · DB 에 없는 아이디만 만듭니다). 비밀번호 원문은 로컬이라 주석 줄에 남깁니다
+if [ ! -f local-secrets/bootstrap.admins ]; then
+  PW="$(openssl rand -hex 9)"
+  printf '# 로컬 마스터 — 아이디 master · 비밀번호 %s · 인증 코드 메일은 Mailpit http://localhost:8025\nmaster,마스터,MASTER,master@studio.local,%s\n' \
+    "$PW" "$(printf '%s' "$PW" | htpasswd -niB -C 10 x | cut -d: -f2- | tr -d '\n')" > local-secrets/bootstrap.admins
+  echo "만듦: local-secrets/bootstrap.admins"
+fi
 
 echo
-echo "첫 마스터 계정: master / $(cat local-secrets/bootstrap.master-password)  (계정이 하나도 없을 때만 만들어집니다)"
+head -1 local-secrets/bootstrap.admins

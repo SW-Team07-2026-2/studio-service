@@ -20,6 +20,19 @@ spring:
       timeout: 2s
       repositories.enabled: false             # @RedisHash 저장소는 쓰지 않습니다 (StringRedisTemplate 만)
 
+  mail:                                       # 로그인 인증 코드 메일 — Gmail SMTP (앱 비밀번호). 보내는 주소는 app.login.mail-from
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${smtp.username:}               # ← configtree 파일 (Gmail 주소)
+    password: ${smtp.password:}               # ← configtree 파일 (앱 비밀번호 16자)
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
+
   jpa:
     open-in-view: false
     hibernate.ddl-auto: validate              # Flyway 와 엔티티가 어긋나면 기동 실패
@@ -43,6 +56,7 @@ server:
 management:
   server.port: 8095
   endpoints.web.exposure.include: health,info,prometheus
+  health.mail.enabled: false                  # health 를 볼 때마다 SMTP 에 붙지 않게
   endpoint.health:
     probes.enabled: true
     group:
@@ -56,15 +70,11 @@ app:
     cookie-secure: true
     cookie-same-site: ${STUDIO_COOKIE_SAMESITE:Strict}   # 관리자 화면이 다른 사이트(도메인)에 있으면 None
   login:
-    challenge-minutes: 5                      # 1차(아이디 · 비밀번호) 통과 후 OTP 입력까지
-    max-failures: 5                           # 비밀번호 · OTP 연속 실패
+    challenge-minutes: 5                      # 1차(아이디 · 비밀번호) 통과 후 메일 인증 코드 입력까지
+    max-failures: 5                           # 비밀번호 · 인증 코드 연속 실패
     lock-minutes: 15
     bcrypt-strength: 12
-  totp:
-    issuer: indie-studio                      # OTP 앱에 보이는 이름
-  bootstrap:                                  # 계정이 하나도 없을 때만 — 첫 마스터 계정 (비밀번호는 configtree bootstrap.master-password)
-    master-login-id: ${STUDIO_MASTER_LOGIN_ID:}
-    master-name: ${STUDIO_MASTER_NAME:마스터}
+    mail-from: ${STUDIO_MAIL_FROM:indig <noreply@indig.co.kr>}   # Gmail "다른 주소에서 메일 보내기"에 등록한 주소여야 그대로 나갑니다
   internal-token:                             # 나가는 호출 (Studio → Concert · Catalog · Member · Payment)
     issuer: studio
     ttl-seconds: 300

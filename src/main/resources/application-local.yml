@@ -5,13 +5,18 @@ spring:
   data.redis:
     host: localhost
     port: 6382                                # local/compose.yml 의 studio-redis
+  mail:                                       # local/compose.yml 의 studio-mail (Mailpit) — 인증 코드는 http://localhost:8025 에서 봅니다
+    host: localhost
+    port: 1025
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+      mail.smtp.starttls.required: false
 
 app:
   session:
     cookie-secure: false                      # 로컬은 http
     cookie-same-site: Lax
-  bootstrap:
-    master-login-id: master
   services:
     concert: http://localhost:8083
     catalog: http://localhost:8082
