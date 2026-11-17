@@ -159,14 +159,15 @@ class RbacTest extends IntegrationTest {
     @Test
     void stateChangingRequestNeedsCsrfToken() throws Exception {
         Session master = loginMaster();
-        String account = json(Map.of("loginId", newLoginId("cs"), "name", "CS", "role", "CS", "password", PASSWORD));
+        String account = json(Map.of("loginId", newLoginId("cs"), "name", "CS", "role", "CS",
+                "otpEmails", List.of("cs.Owner@Studio.test"), "password", PASSWORD));
 
         mvc.perform(post("/api/studio/accounts").cookie(master.cookie()).contentType(MediaType.APPLICATION_JSON).content(account))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
         mvc.perform(post("/api/studio/accounts").cookie(master.cookie()).header("X-CSRF-Token", "guess").contentType(MediaType.APPLICATION_JSON).content(account))
                 .andExpect(status().isForbidden());
         mvc.perform(as(master, post("/api/studio/accounts")).contentType(MediaType.APPLICATION_JSON).content(account))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.result.otpEnrolled").value(false));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.otpEmails[0]").value("cs.owner@studio.test"));
 
         // 막힌 요청도 작업 기록에 남습니다
         MvcResult logs = mvc.perform(get("/api/studio/audit-logs").param("adminId", master.me().get("id").asText()).cookie(master.cookie()))
@@ -187,7 +188,8 @@ class RbacTest extends IntegrationTest {
 
         // 같은 아이디는 두 번 못 만듭니다
         mvc.perform(as(master, post("/api/studio/accounts")).contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("loginId", loginId, "name", "중복", "role", "CS", "password", PASSWORD))))
+                        .content(json(Map.of("loginId", loginId, "name", "중복", "role", "CS",
+                                "otpEmails", List.of(email(loginId)), "password", PASSWORD))))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("LOGIN_ID_TAKEN"));
 
         // 역할을 바꾸면 그 계정의 세션이 바로 끊기고, 다시 들어오면 새 역할의 탭만 보입니다
@@ -198,12 +200,21 @@ class RbacTest extends IntegrationTest {
         assertThat(menuKeys(goods)).containsExactly("products");
         mvc.perform(get("/api/studio/venues").cookie(goods.cookie())).andExpect(status().isNotFound());
 
-        // OTP 초기화 — 세션이 끊기고 다음 로그인 때 다시 등록합니다
-        mvc.perform(as(master, post("/api/studio/accounts/" + id + "/otp-reset"))).andExpect(status().isOk());
-        mvc.perform(get("/api/studio/me").cookie(goods.cookie())).andExpect(status().isUnauthorized());
-        MvcResult first = mvc.perform(post("/api/studio/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("loginId", loginId, "password", PASSWORD)))).andExpect(status().isOk()).andReturn();
-        assertThat(result(first).get("next").asText()).isEqualTo("OTP_ENROLL");
+        // 인증 코드 받을 메일을 바꾸면 다음 로그인부터 새 주소로만 갑니다. 메일이 없거나 주소가 아니면 거절
+        mvc.perform(as(master, patch("/api/studio/accounts/" + id)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"otpEmails\":[\"moved." + id + "@studio.test\",\"second." + id + "@studio.test\"]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.otpEmails.length()").value(2));
+        mvc.perform(as(master, patch("/api/studio/accounts/" + id)).contentType(MediaType.APPLICATION_JSON).content("{\"otpEmails\":[]}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(as(master, patch("/api/studio/accounts/" + id)).contentType(MediaType.APPLICATION_JSON).content("{\"otpEmails\":[\"not-an-email\"]}"))
+                .andExpect(status().isBadRequest());
+        int before = mail.to(email(loginId)).size();
+        mvc.perform(post("/api/studio/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("loginId", loginId, "password", PASSWORD)))).andExpect(status().isOk());
+        assertThat(mail.to(email(loginId))).hasSize(before);
+        assertThat(mail.lastCode("moved." + id + "@studio.test")).isEqualTo(mail.lastCode("second." + id + "@studio.test"));
+        mvc.perform(as(master, patch("/api/studio/accounts/" + id)).contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("otpEmails", List.of(email(loginId)))))).andExpect(status().isOk());
 
         // 비밀번호 초기화 — 옛 비밀번호는 끝
         mvc.perform(as(master, post("/api/studio/accounts/" + id + "/password-reset")).contentType(MediaType.APPLICATION_JSON)
@@ -220,7 +231,7 @@ class RbacTest extends IntegrationTest {
                 .content(json(Map.of("loginId", loginId, "password", "reset-by-master-77")))).andExpect(status().isUnauthorized());
         JsonNode accounts = result(mvc.perform(get("/api/studio/accounts").cookie(master.cookie())).andExpect(status().isOk()).andReturn());
         assertThat(accounts.findValuesAsText("loginId")).contains(loginId, MASTER_ID);
-        assertThat(accounts.toString()).doesNotContain("passwordHash").doesNotContain("totp");
+        assertThat(accounts.toString()).doesNotContain("passwordHash").doesNotContain("$2a$");
 
         // 마스터는 자기 역할 · 상태를 못 바꿉니다 — 활성 마스터가 항상 1명 남습니다
         long masterId = master.me().get("id").asLong();

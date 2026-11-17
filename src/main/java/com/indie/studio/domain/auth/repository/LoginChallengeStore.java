@@ -8,14 +8,12 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * 로그인 2단계 대기 — 1차(아이디 · 비밀번호)를 통과한 사람만 가집니다. 5분 · 1회용.
+ * 로그인 2단계 대기 — 1차(아이디 · 비밀번호)를 통과한 사람만 가집니다. 5분 · 1회용. 메일로 보낸 인증 코드의 해시를 함께 둡니다.
  * Redis 해시 {@code studio:auth:challenge:<SHA-256(쿠키 값)>} — 쿠키 값의 해시만 둡니다.
  * Redis 만료(TTL)는 청소용이고, 만료 판정은 저장한 expiresAt 과 앱 시계(Clock)로 합니다.
  */
@@ -31,7 +29,7 @@ public class LoginChallengeStore {
     private static final RedisScript<Long> FAILED_ATTEMPT = new DefaultRedisScript<>(
             "if redis.call('EXISTS', KEYS[1]) == 1 then return redis.call('HINCRBY', KEYS[1], 'attempts', 1) end return -1", Long.class);
 
-    public record Challenge(long adminId, byte[] enrollSecretEnc, int attempts, Instant expiresAt) {}
+    public record Challenge(long adminId, String codeHash, int attempts, Instant expiresAt) {}
 
     private final StringRedisTemplate redis;
 
@@ -39,25 +37,18 @@ public class LoginChallengeStore {
         this.redis = redis;
     }
 
-    /** enrollSecretEnc 는 OTP 등록 중일 때만 — 코드가 맞으면 admin_account 로 옮깁니다 */
-    public void save(String tokenHash, long adminId, byte[] enrollSecretEnc, String clientIp, Instant expiresAt, Duration ttl) {
-        List<String> args = new ArrayList<>(List.of(String.valueOf(ttl.toMillis()),
-                "adminId", String.valueOf(adminId), "ip", clientIp, "attempts", "0",
-                "expiresAt", String.valueOf(expiresAt.toEpochMilli())));
-        if (enrollSecretEnc != null) {
-            args.add("enroll");
-            args.add(Base64.getEncoder().encodeToString(enrollSecretEnc));
-        }
-        redis.execute(SAVE, List.of(PREFIX + tokenHash), args.toArray());
+    /** codeHash — 인증 코드 원문은 두지 않습니다 (AuthService.codeHash) */
+    public void save(String tokenHash, long adminId, String codeHash, String clientIp, Instant expiresAt, Duration ttl) {
+        redis.execute(SAVE, List.of(PREFIX + tokenHash), String.valueOf(ttl.toMillis()),
+                "adminId", String.valueOf(adminId), "code", codeHash, "ip", clientIp, "attempts", "0",
+                "expiresAt", String.valueOf(expiresAt.toEpochMilli()));
     }
 
     public Optional<Challenge> find(String tokenHash) {
         HashOperations<String, String, String> hash = redis.opsForHash();
         Map<String, String> f = hash.entries(PREFIX + tokenHash);
-        if (f.get("adminId") == null || f.get("expiresAt") == null) return Optional.empty();
-        String enroll = f.get("enroll");
-        return Optional.of(new Challenge(Long.parseLong(f.get("adminId")),
-                enroll == null ? null : Base64.getDecoder().decode(enroll),
+        if (f.get("adminId") == null || f.get("code") == null || f.get("expiresAt") == null) return Optional.empty();
+        return Optional.of(new Challenge(Long.parseLong(f.get("adminId")), f.get("code"),
                 Integer.parseInt(f.getOrDefault("attempts", "0")),
                 Instant.ofEpochMilli(Long.parseLong(f.get("expiresAt")))));
     }

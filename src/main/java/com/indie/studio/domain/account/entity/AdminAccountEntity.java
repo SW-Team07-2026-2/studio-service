@@ -13,6 +13,8 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 
 /** 관리자 계정 — 행을 지우지 않습니다 (기록이 이 id 를 가리킴). 그만둔 사람은 DISABLED */
 @Entity
@@ -33,8 +35,7 @@ public class AdminAccountEntity {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     private Status status;
-    private byte[] totpSecretEnc;
-    private Long totpLastStep;
+    private String otpEmails;   // 쉼표 구분 — getOtpEmails()
     private int failedCount;
     private Instant lockedUntil;
     private Instant lastLoginAt;
@@ -43,11 +44,12 @@ public class AdminAccountEntity {
 
     protected AdminAccountEntity() {}
 
-    public AdminAccountEntity(String loginId, String name, String passwordHash, Role role, Instant now) {
+    public AdminAccountEntity(String loginId, String name, String passwordHash, Role role, List<String> otpEmails, Instant now) {
         this.loginId = loginId;
         this.name = name;
         this.passwordHash = passwordHash;
         this.role = role;
+        this.otpEmails = joinEmails(otpEmails);
         this.status = Status.ACTIVE;
         this.createdAt = now;
         this.updatedAt = now;
@@ -57,7 +59,7 @@ public class AdminAccountEntity {
 
     public boolean isLocked(Instant now) { return lockedUntil != null && lockedUntil.isAfter(now); }
 
-    /** 비밀번호 · OTP 실패 — maxFailures 번 연속이면 잠급니다 */
+    /** 비밀번호 · 인증 코드 실패 — maxFailures 번 연속이면 잠급니다 */
     public void recordFailure(Instant now, int maxFailures, Duration lock) {
         failedCount++;
         if (failedCount >= maxFailures) {
@@ -67,10 +69,8 @@ public class AdminAccountEntity {
         updatedAt = now;
     }
 
-    /** OTP 통과 — enrolledSecretEnc 가 있으면 이번에 등록한 비밀키입니다 */
-    public void loginSucceeded(byte[] enrolledSecretEnc, long totpStep, Instant now) {
-        if (enrolledSecretEnc != null) totpSecretEnc = enrolledSecretEnc;
-        totpLastStep = totpStep;
+    /** 메일 인증 코드 통과 */
+    public void loginSucceeded(Instant now) {
         failedCount = 0;
         lockedUntil = null;
         lastLoginAt = now;
@@ -84,17 +84,11 @@ public class AdminAccountEntity {
         this.updatedAt = now;
     }
 
-    /** OTP 초기화 — 다음 로그인 때 다시 등록합니다 (기기 분실) */
-    public void resetOtp(Instant now) {
-        this.totpSecretEnc = null;
-        this.totpLastStep = null;
-        this.updatedAt = now;
-    }
-
-    public void update(String name, Role role, Status status, Instant now) {
+    public void update(String name, Role role, Status status, List<String> otpEmails, Instant now) {
         if (name != null) this.name = name;
         if (role != null) this.role = role;
         if (status != null) this.status = status;
+        if (otpEmails != null) this.otpEmails = joinEmails(otpEmails);
         this.updatedAt = now;
     }
 
@@ -104,9 +98,13 @@ public class AdminAccountEntity {
     public String getPasswordHash() { return passwordHash; }
     public Role getRole() { return role; }
     public Status getStatus() { return status; }
-    public byte[] getTotpSecretEnc() { return totpSecretEnc; }
-    public Long getTotpLastStep() { return totpLastStep; }
+    public List<String> getOtpEmails() { return Arrays.asList(otpEmails.split(",")); }
     public Instant getLockedUntil() { return lockedUntil; }
     public Instant getLastLoginAt() { return lastLoginAt; }
     public Instant getCreatedAt() { return createdAt; }
+
+    /** 소문자 · 앞뒤 공백 없이 · 중복 없이 */
+    private static String joinEmails(List<String> emails) {
+        return String.join(",", emails.stream().map(e -> e.strip().toLowerCase()).distinct().toList());
+    }
 }

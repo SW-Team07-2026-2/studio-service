@@ -1,10 +1,10 @@
 package com.indie.studio;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.indie.studio.support.IntegrationTest;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.Duration;
@@ -17,65 +17,115 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 로그인 — 1차 아이디 · 비밀번호(DB) → 2차 OTP → 대시보드 */
+/** 로그인 — 1차 아이디 · 비밀번호(DB) → 2차 메일 인증 코드 → 대시보드 */
 class AuthFlowTest extends IntegrationTest {
 
     @Test
-    void passwordThenOtpThenDashboard() throws Exception {
+    void passwordThenMailCodeThenDashboard() throws Exception {
         String loginId = newLoginId("cs");
         createAccount(loginMaster(), loginId, "CS");
-        clock.advance(Duration.ofSeconds(31));
 
         // 로그인 전에는 무엇을 불러도 401 — 있는 경로든 없는 경로든 같습니다
         mvc.perform(get("/api/studio/me")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         mvc.perform(get("/api/studio/no-such-api")).andExpect(status().isUnauthorized());
 
-        // 1차 — 틀린 비밀번호와 없는 아이디는 같은 응답
+        // 1차 — 틀린 비밀번호와 없는 아이디는 같은 응답이고, 메일은 가지 않습니다
+        int mailsBefore = mail.count();
         mvc.perform(loginRequest(loginId, "wrong-password-123")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
         mvc.perform(loginRequest("nobody.here", PASSWORD)).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
+        assertThat(mail.count()).isEqualTo(mailsBefore);
 
-        // 1차 통과 — 첫 로그인이라 OTP 등록 정보가 옵니다. 아직 로그인된 것이 아닙니다
+        // 1차 통과 — 인증 코드 메일이 한 통 갑니다. 응답에는 가린 주소만 있고 코드는 없습니다. 아직 로그인된 것이 아닙니다
         MvcResult first = mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isOk()).andReturn();
-        JsonNode next = result(first);
-        assertThat(next.get("next").asText()).isEqualTo("OTP_ENROLL");
-        assertThat(next.get("otpauthUri").asText()).startsWith("otpauth://totp/indie-studio:" + loginId + "?secret=" + next.get("secret").asText());
+        assertThat(result(first).get("next").asText()).isEqualTo("OTP");
+        assertThat(result(first).get("sentTo")).hasSize(1);
+        assertThat(result(first).get("sentTo").get(0).asText()).isEqualTo("cs***@studio.test");
+        assertThat(mail.count()).isEqualTo(mailsBefore + 1);
+        SimpleMailMessage message = mail.to(email(loginId)).get(0);
+        assertThat(message.getFrom()).isEqualTo("indig <noreply@indig.co.kr>");
+        assertThat(message.getSubject()).contains("인증 코드");
+        String code = otp(loginId);
+        assertThat(first.getResponse().getContentAsString()).doesNotContain(code);
         Cookie challenge = first.getResponse().getCookie("STUDIO_2FA");
         assertThat(challenge.isHttpOnly()).isTrue();
         assertThat(first.getResponse().getCookie("STUDIO_SESSION")).isNull();
         mvc.perform(get("/api/studio/me").cookie(challenge)).andExpect(status().isUnauthorized());
 
-        // 2차 — 틀린 코드는 거절, 대기 쿠키 없이는 처음부터
-        mvc.perform(otpRequest(challenge, "000000")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_INVALID"));
-        mvc.perform(post("/api/studio/auth/otp").contentType(MediaType.APPLICATION_JSON).content(json(Map.of("code", "123456"))))
+        // 2차 — 틀린 코드는 거절, 대기 쿠키 없이는 맞는 코드도 처음부터
+        mvc.perform(otpRequest(challenge, wrong(code))).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_INVALID"));
+        mvc.perform(post("/api/studio/auth/otp").contentType(MediaType.APPLICATION_JSON).content(json(Map.of("code", code))))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_CHALLENGE_EXPIRED"));
 
-        // 처음부터 다시 — login() 이 1차 · OTP 등록 · 2차를 끝까지 합니다
-        Session session = login(loginId, PASSWORD);
-        assertThat(session.cookie().isHttpOnly()).isTrue();
-        assertThat(session.cookie().getPath()).isEqualTo("/api/studio");
+        // 맞는 코드 — 세션 쿠키가 내려오고 내 역할의 탭만 보입니다
+        MvcResult second = mvc.perform(otpRequest(challenge, code)).andExpect(status().isOk()).andReturn();
+        Cookie sessionCookie = second.getResponse().getCookie("STUDIO_SESSION");
+        assertThat(sessionCookie.isHttpOnly()).isTrue();
+        assertThat(sessionCookie.getPath()).isEqualTo("/api/studio");
+        Session session = new Session(sessionCookie, result(second).get("csrfToken").asText(), result(second));
         assertThat(session.me().get("role").asText()).isEqualTo("CS");
-
         mvc.perform(get("/api/studio/me").cookie(session.cookie())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.loginId").value(loginId))
                 .andExpect(jsonPath("$.result.menus.length()").value(1))
                 .andExpect(jsonPath("$.result.menus[0].key").value("cs"));
 
-        // 두 번째 로그인부터는 등록 없이 코드만
-        clock.advance(Duration.ofSeconds(31));
-        MvcResult again = mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isOk()).andReturn();
-        assertThat(result(again).get("next").asText()).isEqualTo("OTP");
-        assertThat(result(again).has("secret")).isFalse();
-        String code = otp(loginId);
-        mvc.perform(otpRequest(again.getResponse().getCookie("STUDIO_2FA"), code)).andExpect(status().isOk());
-
-        // 방금 통과한 코드는 같은 30초 안에 다시 쓸 수 없습니다 (어깨 너머로 본 코드 재사용)
-        MvcResult replay = mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isOk()).andReturn();
-        mvc.perform(otpRequest(replay.getResponse().getCookie("STUDIO_2FA"), code))
-                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_INVALID"));
+        // 쓴 코드는 다시 못 씁니다 (대기는 1회용)
+        mvc.perform(otpRequest(challenge, code)).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_CHALLENGE_EXPIRED"));
 
         // 로그아웃하면 그 세션은 끝
         mvc.perform(as(session, post("/api/studio/auth/logout"))).andExpect(status().isOk());
         mvc.perform(get("/api/studio/me").cookie(session.cookie())).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void sharedAccountSendsSameCodeToEveryAddress() throws Exception {
+        // bootstrap.admins 로 심은 공용 계정 (메일 2개 · 파일에는 대문자 · 공백이 섞여 있음)
+        MvcResult first = mvc.perform(loginRequest(SHARED_ID, PASSWORD)).andExpect(status().isOk()).andReturn();
+        assertThat(result(first).get("sentTo")).hasSize(2);
+        String code = mail.lastCode(SHARED_EMAILS.get(0));
+        assertThat(mail.lastCode(SHARED_EMAILS.get(1))).isEqualTo(code);
+        // 한 통에 한 사람 — 받는 사람끼리 주소가 보이지 않습니다
+        assertThat(mail.to(SHARED_EMAILS.get(0))).allSatisfy(m -> assertThat(m.getTo()).hasSize(1));
+
+        mvc.perform(otpRequest(first.getResponse().getCookie("STUDIO_2FA"), code)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.loginId").value(SHARED_ID)).andExpect(jsonPath("$.result.role").value("CS"));
+    }
+
+    @Test
+    void codeExpiresAfterFiveMinutesAndFiveWrongTries() throws Exception {
+        String loginId = newLoginId("checker");
+        createAccount(loginMaster(), loginId, "CHECKER");
+
+        // 5분이 지나면 맞는 코드도 처음부터
+        MvcResult late = mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isOk()).andReturn();
+        clock.advance(Duration.ofMinutes(5).plusSeconds(1));
+        mvc.perform(otpRequest(late.getResponse().getCookie("STUDIO_2FA"), otp(loginId)))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_CHALLENGE_EXPIRED"));
+
+        // 다시 로그인하면 새 코드가 옵니다. 5번 틀리면 그 대기는 버려지고 (맞는 코드도 거절) 계정이 15분 잠깁니다
+        MvcResult guess = mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isOk()).andReturn();
+        Cookie challenge = guess.getResponse().getCookie("STUDIO_2FA");
+        String code = otp(loginId);
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(otpRequest(challenge, wrong(code))).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_INVALID"));
+        }
+        mvc.perform(otpRequest(challenge, code)).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_CHALLENGE_EXPIRED"));
+        mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
+
+        clock.advance(Duration.ofMinutes(16));
+        assertThat(login(loginId, PASSWORD).me().get("role").asText()).isEqualTo("CHECKER");
+    }
+
+    @Test
+    void mailFailureDoesNotLeaveChallenge() throws Exception {
+        String loginId = newLoginId("goods");
+        createAccount(loginMaster(), loginId, "GOODS");
+
+        // 메일 서버가 받지 않으면 503 — 2단계 대기 쿠키도 내려가지 않습니다. 다시 로그인하면 됩니다
+        mail.failNext();
+        MvcResult failed = mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("OTP_MAIL_FAILED")).andReturn();
+        assertThat(failed.getResponse().getCookie("STUDIO_2FA")).isNull();
+        assertThat(login(loginId, PASSWORD).me().get("role").asText()).isEqualTo("GOODS");
     }
 
     @Test
@@ -137,5 +187,10 @@ class AuthFlowTest extends IntegrationTest {
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder otpRequest(Cookie challenge, String code) throws Exception {
         return post("/api/studio/auth/otp").cookie(challenge).contentType(MediaType.APPLICATION_JSON).content(json(Map.of("code", code)));
+    }
+
+    /** 맞는 코드와 다른 6자리 */
+    private static String wrong(String code) {
+        return code.equals("000000") ? "000001" : "000000";
     }
 }

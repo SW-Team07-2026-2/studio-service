@@ -43,7 +43,7 @@ public class AccountController {
         return ApiResponse.onSuccess(accountService.create(request));
     }
 
-    /** 이름 · 역할 · 상태(ACTIVE · DISABLED). 역할 · 상태가 바뀌면 그 계정은 바로 로그아웃됩니다 */
+    /** 이름 · 역할 · 상태(ACTIVE · DISABLED) · 인증 코드 받을 메일. 역할 · 상태가 바뀌면 그 계정은 바로 로그아웃됩니다 */
     @PatchMapping("/api/studio/accounts/{id}")
     @RequirePermission(Permission.ACCOUNT)
     public ApiResponse<AccountView> update(@PathVariable @Positive long id, @Valid @RequestBody UpdateRequest request,
@@ -56,14 +56,6 @@ public class AccountController {
     public ApiResponse<Void> resetPassword(@PathVariable @Positive long id, @Valid @RequestBody PasswordResetRequest request,
                                            @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
         accountService.resetPassword(id, request.password(), admin);
-        return ApiResponse.onSuccess(null);
-    }
-
-    @PostMapping("/api/studio/accounts/{id}/otp-reset")
-    @RequirePermission(Permission.ACCOUNT)
-    public ApiResponse<Void> resetOtp(@PathVariable @Positive long id,
-                                      @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        accountService.resetOtp(id, admin);
         return ApiResponse.onSuccess(null);
     }
 }

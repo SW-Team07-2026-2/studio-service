@@ -12,18 +12,20 @@ import com.indie.studio.global.common.util.Tokens;
 import com.indie.studio.global.config.StudioProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 /**
- * 관리자 로그인 — 1차 아이디 · 비밀번호(MySQL · bcrypt) → 2차 OTP → 세션. 2단계 대기와 세션은 Redis 에 둡니다 (만료되면 Redis 가 지움).
+ * 관리자 로그인 — 1차 아이디 · 비밀번호(MySQL · bcrypt) → 2차 메일 인증 코드 → 세션. 2단계 대기와 세션은 Redis 에 둡니다 (만료되면 Redis 가 지움).
  * <pre>
- * login      비밀번호가 맞으면 2단계 대기(5분 · 1회용)를 만듭니다. OTP 가 없는 계정이면 새 비밀키를 대기에 실어 등록을 함께 합니다.
- * verifyOtp  코드가 맞으면 세션을 만듭니다. 같은 30초 단계의 코드는 한 번만 통과합니다 (어깨 너머로 본 코드 재사용 차단).
+ * login      비밀번호가 맞으면 2단계 대기(5분 · 1회용)를 만들고, 계정에 등록된 메일로 6자리 코드를 보냅니다. 대기에는 코드의 해시만 둡니다.
+ * verifyOtp  코드가 맞으면 세션을 만듭니다. 대기는 한 번 쓰면 지워지고, 5번 틀리면 버립니다 (코드는 로그인마다 새로 만듭니다).
  * authenticate  요청마다 — 세션(Redis)과 계정의 지금 상태(MySQL)를 봅니다. 그래서 역할 변경 · 비활성화가 즉시 반영됩니다.
  * </pre>
  * 실패 횟수는 예외를 던지기 전에 저장합니다 (메서드에 트랜잭션을 걸지 않음 — 걸면 롤백으로 횟수가 사라집니다).
@@ -39,24 +41,25 @@ public class AuthService {
     private final LoginChallengeStore challenges;
     private final SessionStore sessions;
     private final PasswordEncoder passwordEncoder;
-    private final SecretCipher cipher;
+    private final OtpMailer mailer;
     private final StudioProperties props;
     private final Clock clock;
     private final String dummyHash;
 
     public AuthService(AdminAccountRepository accounts, LoginChallengeStore challenges, SessionStore sessions,
-                       PasswordEncoder passwordEncoder, SecretCipher cipher, StudioProperties props, Clock clock) {
+                       PasswordEncoder passwordEncoder, OtpMailer mailer, StudioProperties props, Clock clock) {
         this.accounts = accounts;
         this.challenges = challenges;
         this.sessions = sessions;
         this.passwordEncoder = passwordEncoder;
-        this.cipher = cipher;
+        this.mailer = mailer;
         this.props = props;
         this.clock = clock;
         this.dummyHash = passwordEncoder.encode(Tokens.random());   // 없는 아이디도 bcrypt 를 한 번 돌려 응답 시간으로 아이디 유무를 못 가리게
     }
 
-    public record LoginResult(String challengeToken, String next, String otpauthUri, String secret) {}
+    /** sentTo — 코드를 보낸 주소 (가림 처리) */
+    public record LoginResult(String challengeToken, List<String> sentTo) {}
 
     public record SessionIssued(String sessionToken, AdminPrincipal admin) {}
 
@@ -73,14 +76,19 @@ public class AuthService {
             throw new GeneralException(AuthErrorCode.LOGIN_FAILED);
         }
 
-        byte[] enrollSecret = account.getTotpSecretEnc() == null ? Totp.newSecret() : null;
+        String code = Tokens.digits(6);
         String token = Tokens.random();
+        String challengeHash = Tokens.sha256(token);
         Duration ttl = Duration.ofMinutes(props.login().challengeMinutes());
-        challenges.save(Tokens.sha256(token), account.getId(),
-                enrollSecret == null ? null : cipher.encrypt(enrollSecret), clientIp, now.plus(ttl), ttl);
-        if (enrollSecret == null) return new LoginResult(token, "OTP", null, null);
-        return new LoginResult(token, "OTP_ENROLL",
-                Totp.otpauthUri(props.totp().issuer(), account.getLoginId(), enrollSecret), Totp.base32(enrollSecret));
+        challenges.save(challengeHash, account.getId(), codeHash(token, code), clientIp, now.plus(ttl), ttl);
+        try {
+            mailer.send(account.getLoginId(), account.getOtpEmails(), code, ttl);
+        } catch (MailException e) {
+            challenges.consume(challengeHash);
+            log.error("otp_mail_failed adminId={} reason={}", account.getId(), e.getMessage());
+            throw new GeneralException(AuthErrorCode.OTP_MAIL_FAILED);
+        }
+        return new LoginResult(token, account.getOtpEmails().stream().map(AuthService::mask).toList());
     }
 
     public SessionIssued verifyOtp(String challengeToken, String code, String clientIp) {
@@ -91,29 +99,26 @@ public class AuthService {
             throw new GeneralException(AuthErrorCode.OTP_CHALLENGE_EXPIRED);
         }
         AdminAccountEntity account = accounts.findById(challenge.adminId()).orElse(null);
-        boolean enroll = challenge.enrollSecretEnc() != null;
-        // 대기 중에 계정이 꺼졌거나 · 잠겼거나 · OTP 등록 상태가 바뀌었으면(다른 창에서 먼저 등록 · 마스터가 초기화) 처음부터 다시
-        if (account == null || !account.isActive() || account.isLocked(now) || enroll != (account.getTotpSecretEnc() == null)) {
+        // 대기 중에 계정이 꺼졌거나 잠겼으면 처음부터 다시
+        if (account == null || !account.isActive() || account.isLocked(now)) {
             throw new GeneralException(AuthErrorCode.OTP_CHALLENGE_EXPIRED);
         }
 
-        byte[] secretEnc = enroll ? challenge.enrollSecretEnc() : account.getTotpSecretEnc();
-        long step = Totp.matchStep(cipher.decrypt(secretEnc), code, now);
-        if (step < 0 || (account.getTotpLastStep() != null && step <= account.getTotpLastStep())) {
+        if (!Tokens.same(codeHash(challengeToken, code), challenge.codeHash())) {
             challenges.failedAttempt(challengeHash);
             fail(account, now);
             throw new GeneralException(AuthErrorCode.OTP_INVALID);
         }
         if (!challenges.consume(challengeHash)) throw new GeneralException(AuthErrorCode.OTP_CHALLENGE_EXPIRED);   // 1회용 — 먼저 지운 쪽만
 
-        account.loginSucceeded(enroll ? secretEnc : null, step, now);
+        account.loginSucceeded(now);
         accounts.save(account);
         String token = Tokens.random();
         String tokenHash = Tokens.sha256(token);
         String csrfToken = Tokens.random();
         Duration ttl = Duration.ofHours(props.session().ttlHours());
         sessions.save(tokenHash, account.getId(), csrfToken, clientIp, now, now.plus(ttl), ttl);
-        log.info("admin_login adminId={} role={} enrolled={}", account.getId(), account.getRole(), enroll);
+        log.info("admin_login adminId={} role={}", account.getId(), account.getRole());
         return new SessionIssued(token, principal(account, tokenHash, csrfToken));
     }
 
@@ -156,6 +161,17 @@ public class AuthService {
         account.recordFailure(now, props.login().maxFailures(), Duration.ofMinutes(props.login().lockMinutes()));
         accounts.save(account);
         if (account.isLocked(now)) log.warn("admin_locked adminId={} until={}", account.getId(), account.getLockedUntil());
+    }
+
+    /** 대기에 두는 값 — 쿠키 값(Redis 에 없음)을 섞어, Redis 만 봐서는 6자리를 되짚을 수 없게 */
+    private static String codeHash(String challengeToken, String code) {
+        return Tokens.sha256(challengeToken + ":" + code);
+    }
+
+    /** ab***@example.com */
+    private static String mask(String email) {
+        int at = email.indexOf('@');
+        return email.substring(0, Math.min(2, at)) + "***" + email.substring(at);
     }
 
     private static AdminPrincipal principal(AdminAccountEntity account, String sessionTokenHash, String csrfToken) {
