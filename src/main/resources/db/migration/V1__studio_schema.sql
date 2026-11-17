@@ -59,6 +59,26 @@ CREATE TABLE stage_job_image (
     CONSTRAINT fk_stage_job_image_job FOREIGN KEY (job_id) REFERENCES stage_job (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
+-- 크롤러가 넘긴 공연 후보 (11/17 결정) — 공연 관리자가 확인 · 보완(공연장 · 라인업 id 등)한 뒤 Concert 에 등록합니다.
+-- 같은 (source, external_id) 는 한 행. 확인 전(PENDING)에 다시 오면 값만 바뀌고, 확인한 뒤(APPROVED · REJECTED)에는 그대로 둡니다.
+-- 아티스트 · 앨범 · 상품은 여기 두지 않고 바로 Catalog 로 넘깁니다 (CrawlIntakeController).
+CREATE TABLE crawl_concert (
+    id           BIGINT       NOT NULL AUTO_INCREMENT,
+    source       VARCHAR(32)  NOT NULL,
+    external_id  VARCHAR(128) NOT NULL,
+    source_hash  VARCHAR(128) NULL,
+    payload_json MEDIUMTEXT   NOT NULL,                   -- 크롤러가 준 공연 값 그대로
+    status       VARCHAR(16)  NOT NULL,
+    received_at  DATETIME(3)  NOT NULL,                   -- 마지막으로 받은 시각
+    reviewed_by  BIGINT       NULL,
+    reviewed_at  DATETIME(3)  NULL,
+    concert_id   BIGINT       NULL,                       -- 등록된 concert.concert.id (AWS · FK 없음)
+    PRIMARY KEY (id),
+    CONSTRAINT uq_crawl_concert_source UNIQUE (source, external_id),
+    CONSTRAINT fk_crawl_concert_reviewer FOREIGN KEY (reviewed_by) REFERENCES admin_account (id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+CREATE INDEX idx_crawl_concert_status ON crawl_concert (status, id);
+
 -- 작업 기록 — 로그인한 관리자의 요청 1건 = 1행 (조회 포함 · 권한 밖 시도 포함). 개인정보 값 · 검색어 · 본문은 남기지 않습니다.
 CREATE TABLE audit_log (
     id          BIGINT       NOT NULL AUTO_INCREMENT,

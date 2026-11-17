@@ -1,0 +1,59 @@
+package com.indie.studio.domain.crawl.controller;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.indie.studio.domain.crawl.dto.CrawlDtos.CandidateView;
+import com.indie.studio.domain.crawl.entity.CrawlConcertEntity;
+import com.indie.studio.domain.crawl.service.CrawlConcertService;
+import com.indie.studio.global.auth.AdminPrincipal;
+import com.indie.studio.global.auth.Permission;
+import com.indie.studio.global.auth.RequirePermission;
+import com.indie.studio.global.common.response.ApiResponse;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/** 공연 탭의 "수집 대기" — 크롤러가 넘긴 공연 후보를 공연 관리자가 확인해 등록합니다 */
+@RestController
+public class CrawlConcertController {
+
+    private final CrawlConcertService crawlConcertService;
+
+    public CrawlConcertController(CrawlConcertService crawlConcertService) {
+        this.crawlConcertService = crawlConcertService;
+    }
+
+    /** ?status=PENDING|APPROVED|REJECTED (기본 PENDING) &beforeId= &size= — 최신순 */
+    @GetMapping("/api/studio/crawl/concerts")
+    @RequirePermission(Permission.CONCERT)
+    public ApiResponse<List<CandidateView>> list(@RequestParam(defaultValue = "PENDING") CrawlConcertEntity.Status status,
+                                                 @RequestParam(required = false) @Positive Long beforeId,
+                                                 @RequestParam(defaultValue = "50") @Min(1) @Max(200) int size) {
+        return ApiResponse.onSuccess(crawlConcertService.list(status, beforeId, size));
+    }
+
+    /** 등록 — 본문은 POST /api/studio/concerts 와 같습니다 (후보 값을 화면에서 채우고 공연장 · 라인업 id 등을 보완). source · externalId 는 Studio 가 넣습니다 */
+    @PostMapping("/api/studio/crawl/concerts/{id}/approve")
+    @RequirePermission(Permission.CONCERT)
+    public ApiResponse<JsonNode> approve(@PathVariable @Positive long id, @RequestBody ObjectNode concert,
+                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(crawlConcertService.approve(id, concert, admin));
+    }
+
+    /** 등록하지 않음 — 같은 후보가 다시 와도 대기 목록에 다시 올리지 않습니다 */
+    @PostMapping("/api/studio/crawl/concerts/{id}/reject")
+    @RequirePermission(Permission.CONCERT)
+    public ApiResponse<CandidateView> reject(@PathVariable @Positive long id,
+                                             @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(crawlConcertService.reject(id, admin));
+    }
+}
