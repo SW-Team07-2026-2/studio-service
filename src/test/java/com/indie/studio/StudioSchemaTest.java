@@ -8,8 +8,11 @@ import com.indie.studio.global.auth.Role;
 import com.indie.studio.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,6 +23,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * 스키마 — 이 테스트 컨텍스트가 뜬 것 자체가 Flyway(V1 구조 · V2 값)와 엔티티의 일치(ddl-auto: validate)를 확인합니다.
@@ -31,6 +36,8 @@ class StudioSchemaTest extends IntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private StringRedisTemplate redis;
 
     /** 마이그레이션은 V1(구조) · V2(값) 두 파일 */
     @Test
@@ -58,10 +65,19 @@ class StudioSchemaTest extends IntegrationTest {
     }
 
     @Test
-    void storesOnlyHashesAndCiphertext() {
-        // 세션 · 2단계 대기는 쿠키 값의 해시(64자 hex)만, 비밀번호는 bcrypt, OTP 비밀키는 암호문(IV 12 + 20 + 태그 16)
-        assertThat(jdbc.queryForList("select token_hash from admin_session", String.class)).allMatch(h -> h.matches("[0-9a-f]{64}"));
-        assertThat(jdbc.queryForList("select token_hash from admin_login_challenge", String.class)).allMatch(h -> h.matches("[0-9a-f]{64}"));
+    void storesOnlyHashesAndCiphertext() throws Exception {
+        loginMaster();                                       // 세션 하나
+        mvc.perform(post("/api/studio/auth/login").contentType(MediaType.APPLICATION_JSON)   // OTP 를 넣지 않은 2단계 대기 하나
+                .content(json(Map.of("loginId", MASTER_ID, "password", MASTER_PASSWORD)))).andExpect(status().isOk());
+
+        // Redis — 세션 · 2단계 대기는 쿠키 값의 해시(64자 hex)만 키로 두고, 모두 만료가 걸려 있습니다 (최대 로그인 + 8시간)
+        var keys = redis.keys("studio:auth:*");
+        assertThat(keys).anyMatch(k -> k.startsWith("studio:auth:session:")).anyMatch(k -> k.startsWith("studio:auth:challenge:"))
+                .allMatch(k -> k.matches("studio:auth:(session|challenge):[0-9a-f]{64}|studio:auth:admin-sessions:[0-9]+"));
+        assertThat(keys).allSatisfy(k -> assertThat(redis.getExpire(k)).isBetween(1L, Duration.ofHours(8).toSeconds()));
+        assertThat(jdbc.queryForList("show tables", String.class)).doesNotContain("admin_session", "admin_login_challenge");
+
+        // MySQL — 비밀번호는 bcrypt, OTP 비밀키는 암호문(IV 12 + 20 + 태그 16)
         assertThat(jdbc.queryForList("select password_hash from admin_account", String.class)).isNotEmpty().allMatch(h -> h.startsWith("$2a$"));
         assertThat(jdbc.queryForList("select length(totp_secret_enc) from admin_account where totp_secret_enc is not null", Integer.class))
                 .allMatch(n -> n == 48);

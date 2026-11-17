@@ -8,6 +8,7 @@ mkdir -p local-secrets
 put() { [ -f "local-secrets/$1" ] || { printf '%s' "$2" > "local-secrets/$1"; echo "만듦: local-secrets/$1"; }; }
 
 put db.password "studio-local-pw"
+put redis.password "studio-local-redis"
 # 내부 토큰 시크릿은 다른 서비스와 같아야 합니다 — 옆 저장소에 로컬 시크릿이 있으면 그 값을 씁니다
 if [ -f ../concert-service/local-secrets/internal.shared-secret ]; then
   put internal.shared-secret "$(cat ../concert-service/local-secrets/internal.shared-secret)"

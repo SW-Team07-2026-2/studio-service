@@ -24,38 +24,7 @@ CREATE TABLE admin_account (
     CONSTRAINT uq_admin_login_id UNIQUE (login_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
--- 로그인 2단계 대기 — 1차(아이디 · 비밀번호) 통과 뒤 OTP 를 넣기까지. 5분 · 1회용. 쿠키 값의 해시만 둡니다.
-CREATE TABLE admin_login_challenge (
-    id                BIGINT         NOT NULL AUTO_INCREMENT,
-    token_hash        VARCHAR(64)    NOT NULL,            -- SHA-256(쿠키 값)
-    admin_id          BIGINT         NOT NULL,
-    enroll_secret_enc VARBINARY(128) NULL,                -- OTP 등록 중일 때만 — 코드가 맞으면 admin_account 로 옮깁니다
-    client_ip         VARCHAR(45)    NOT NULL,
-    attempts          INT            NOT NULL DEFAULT 0,
-    expires_at        DATETIME(3)    NOT NULL,
-    used_at           DATETIME(3)    NULL,
-    created_at        DATETIME(3)    NOT NULL,
-    PRIMARY KEY (id),
-    CONSTRAINT uq_challenge_token UNIQUE (token_hash),
-    CONSTRAINT fk_challenge_admin FOREIGN KEY (admin_id) REFERENCES admin_account (id)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
-
--- 세션 — 불투명 토큰(쿠키)의 해시. 요청마다 조회하므로 역할 변경 · 비활성화가 즉시 반영됩니다.
-CREATE TABLE admin_session (
-    id           BIGINT      NOT NULL AUTO_INCREMENT,
-    token_hash   VARCHAR(64) NOT NULL,                    -- SHA-256(쿠키 값)
-    admin_id     BIGINT      NOT NULL,
-    csrf_token   VARCHAR(64) NOT NULL,                    -- 상태 변경 요청의 X-CSRF-Token 과 비교
-    client_ip    VARCHAR(45) NOT NULL,
-    created_at   DATETIME(3) NOT NULL,
-    expires_at   DATETIME(3) NOT NULL,                    -- 로그인 + 8시간
-    last_seen_at DATETIME(3) NOT NULL,                    -- 30분 동안 요청이 없으면 만료
-    revoked_at   DATETIME(3) NULL,
-    PRIMARY KEY (id),
-    CONSTRAINT uq_session_token UNIQUE (token_hash),
-    CONSTRAINT fk_session_admin FOREIGN KEY (admin_id) REFERENCES admin_account (id)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
-CREATE INDEX idx_session_admin ON admin_session (admin_id, revoked_at);
+-- 로그인 2단계 대기(OTP 입력 전 5분) · 로그인 세션은 MySQL 이 아니라 Redis 에 둡니다 (LoginChallengeStore · SessionStore).
 
 -- 무대 그리기 작업 — 관리자가 그린 도면을 GPU 서버가 검증하고, 관리자가 결과를 확인해 Concert 로 보냅니다.
 CREATE TABLE stage_job (

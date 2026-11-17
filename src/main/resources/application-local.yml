@@ -2,6 +2,9 @@ spring:
   # 로컬 시크릿도 운영과 같은 방식 — ./local-secrets/ 의 파일 이름이 프로퍼티 키 (local/setup-local.sh 가 만듭니다)
   config.import: optional:configtree:./local-secrets/
   datasource.url: jdbc:mysql://localhost:3307/studio?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
+  data.redis:
+    host: localhost
+    port: 6382                                # local/compose.yml 의 studio-redis
 
 app:
   session:
