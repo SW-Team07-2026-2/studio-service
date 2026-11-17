@@ -497,6 +497,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | 2026-11-16 | KT 배포 설정: KT 는 독립 클러스터 · AWS / 온프레미스는 Cloudflare 관리자 터널(`link-aws` · `link-onprem`) · 전환은 `manifests-kt` 한 줄 · 입구 `admin.indig.co.kr` 도 터널 · CI deploy 잡 (9장 · 6.8) |
 | 2026-11-16 | KT 를 k3s 대신 docker compose 로 (MySQL · Redis · Studio · Prometheus · Grafana). 로그인 2단계 대기 · 세션을 MySQL 테이블에서 Redis 로 (`LoginChallengeStore` · `SessionStore` · V1 에서 테이블 2개 뺌 · 테스트에 Redis 컨테이너). CI 태그 커밋 대상을 `manifests-kt` 의 `compose.yml` 로. 테스트 21건 통과 · 맥 docker 로 compose 전체 기동 확인 |
 | 2026-11-17 | 로그인 2차를 OTP 앱(TOTP · QR)에서 **메일 인증 코드**로 (결정: SMTP · Gmail · 보내는 주소 `noreply@indig.co.kr`). `Totp` · `SecretCipher` · `totp.encryption-key` · `otp-reset` · 첫 마스터 부트스트랩을 없애고, `otp_emails` 컬럼(V1 수정 → 스키마 비우고 다시) · `OtpMailer` · `AdminSeeder`(`bootstrap.admins`) 를 넣음. 운영 계정은 역할별 공용 5개. 테스트 21건 통과 (`TotpTest` 3건 삭제 · `AuthFlowTest` 3건 추가) · 로컬 Mailpit 과 실제 Gmail SMTP 로 발송 확인 |
+| 2026-11-17 | 운영 배포 (main · KT): `studio` 스키마를 비우고 V1 · V2 다시 적용 → 공용 계정 5개 생성 → `admin.indig.co.kr` 에서 비밀번호 → 메일 코드 → 세션 · `/me` · 계정 목록 · 로그아웃(CSRF)까지 실제 확인 |
 | 2026-11-17 | 크롤러 받는 쪽 (결정 A1 · B1 · C1): `/internal/crawl/concerts` → 후보 `crawl_concert` → 공연 관리자 등록 · 등록 안 함 (`/api/studio/crawl/concerts`), `/internal/crawl/catalog/*` → Catalog `/internal/admin/catalog/ingest/*` 로 바로. 크롤러 토큰 `iss=crawler` · 키 `crawler.shared-secret` (6.9). V1 에 테이블 1개 · V2 에 CHECK 1개 → 🔴 KT 운영 반영 때 studio 스키마 비우기. 테스트 25건 |
 
 문서를 쓰다가 찾아 고친 것: CSRF 로 막힌 요청이 작업 기록에 남지 않던 문제 (인터셉터가 요청을 막으면 완료 콜백이 불리지 않음 → 막는 자리에서 직접 기록 · 테스트 추가).
