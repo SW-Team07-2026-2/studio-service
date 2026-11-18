@@ -7,7 +7,7 @@ import java.util.List;
 /** application.yml 의 app.* */
 @ConfigurationProperties(prefix = "app")
 public record StudioProperties(Session session, Login login, InternalToken internalToken,
-                               Services services, Gpu gpu, Cors cors) {
+                               Services services, Gpu gpu, Cors cors, Image image) {
 
     public record Session(int ttlHours, int idleMinutes, boolean cookieSecure, String cookieSameSite) {}
 
@@ -21,4 +21,8 @@ public record StudioProperties(Session session, Login login, InternalToken inter
     public record Gpu(String baseUrl, int connectTimeoutMs, int readTimeoutMs, long maxImageBytes) {}
 
     public record Cors(List<String> allowedOrigins) {}
+
+    /** 공개 이미지 저장소 (11/18) — bucket 이 비면 업로드 · 이미지 저장을 막습니다. endpoint 는 로컬 MinIO 만 */
+    public record Image(String bucket, String region, String publicBaseUrl, String endpoint, long maxBytes, int uploadTtlSeconds,
+                        List<String> importHosts) {}
 }

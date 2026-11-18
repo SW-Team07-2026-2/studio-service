@@ -24,6 +24,10 @@ app:
     payment: http://localhost:8084
   gpu.base-url: http://localhost:9100
   cors.allowed-origins: http://localhost:5173
+  image:                                      # local/compose.yml 의 studio-s3 (LocalStack) — 키는 local-secrets/image.* (아무 값)
+    bucket: indig-images-local
+    endpoint: http://localhost:4566
+    public-base-url: http://localhost:4566/indig-images-local
 
 logging:
   pattern.console: "%d{HH:mm:ss.SSS} %-5level [%X{correlationId:-}] %logger{36} - %msg%n"

@@ -1,6 +1,7 @@
 package com.indie.studio.domain.concert.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.indie.studio.domain.image.ImageGuard;
 import com.indie.studio.global.auth.AdminPrincipal;
 import com.indie.studio.global.auth.Permission;
 import com.indie.studio.global.auth.RequirePermission;
@@ -10,6 +11,7 @@ import com.indie.studio.global.common.response.ApiResponse;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpMethod;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ConcertAdminController {
 
     private final ServiceClient serviceClient;
+    private final ImageGuard images;
 
-    public ConcertAdminController(ServiceClient serviceClient) {
+    public ConcertAdminController(ServiceClient serviceClient, ImageGuard images) {
         this.serviceClient = serviceClient;
+        this.images = images;
     }
 
     /** ?from=&to=&region=&genre=&type=&artistId=&page=&size= */
@@ -54,6 +58,7 @@ public class ConcertAdminController {
     @RequirePermission(Permission.CONCERT)
     public ApiResponse<JsonNode> create(@RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        images.check(body, "posterUrl", "imageUrls");
         return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts", body, admin));
     }
 
@@ -62,7 +67,41 @@ public class ConcertAdminController {
     @RequirePermission(Permission.CONCERT)
     public ApiResponse<JsonNode> update(@PathVariable @Positive long id, @RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        images.check(body, "posterUrl", "imageUrls");
         return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.PATCH, "/internal/admin/concerts/" + id, body, admin));
+    }
+
+    // ── 공연 변경 공지 (11/18) — 새 공지는 라인업 팔로워 + 확정 예매자에게 알림 · 고치기 · 지우기는 알림 없음 ──
+
+    @GetMapping("/api/studio/concerts/{id}/notices")
+    @RequirePermission(Permission.CONCERT)
+    public ApiResponse<JsonNode> notices(@PathVariable @Positive long id,
+                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/internal/admin/concerts/" + id + "/notices", null, admin));
+    }
+
+    /** { kind: SCHEDULE|VENUE|LINEUP|BOOKING|CANCEL|ETC, title, body } — 공연 값(일정 등)은 공연 수정으로 따로 바꿉니다 */
+    @PostMapping("/api/studio/concerts/{id}/notices")
+    @RequirePermission(Permission.CONCERT)
+    public ApiResponse<JsonNode> createNotice(@PathVariable @Positive long id, @RequestBody JsonNode body,
+                                              @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts/" + id + "/notices", body, admin));
+    }
+
+    @PatchMapping("/api/studio/concerts/{id}/notices/{noticeId}")
+    @RequirePermission(Permission.CONCERT)
+    public ApiResponse<JsonNode> updateNotice(@PathVariable @Positive long id, @PathVariable @Positive long noticeId, @RequestBody JsonNode body,
+                                              @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.PATCH,
+                "/internal/admin/concerts/" + id + "/notices/" + noticeId, body, admin));
+    }
+
+    @DeleteMapping("/api/studio/concerts/{id}/notices/{noticeId}")
+    @RequirePermission(Permission.CONCERT)
+    public ApiResponse<JsonNode> deleteNotice(@PathVariable @Positive long id, @PathVariable @Positive long noticeId,
+                                              @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.DELETE,
+                "/internal/admin/concerts/" + id + "/notices/" + noticeId, null, admin));
     }
 
     /** 라인업 전체 교체 — { artistIds: [...] } (첫 번째 = 헤드라이너) */

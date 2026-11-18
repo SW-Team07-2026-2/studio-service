@@ -5,5 +5,7 @@ ALTER TABLE admin_account   ADD CONSTRAINT ck_admin_role           CHECK (role I
 ALTER TABLE admin_account   ADD CONSTRAINT ck_admin_status         CHECK (status IN ('ACTIVE', 'DISABLED'));   -- AdminAccountEntity.Status
 ALTER TABLE stage_job       ADD CONSTRAINT ck_stage_job_status     CHECK (status IN ('PENDING', 'ANALYZING', 'REVIEW', 'SENT', 'FAILED'));   -- StageJobEntity.Status
 ALTER TABLE stage_job_image ADD CONSTRAINT ck_stage_job_image_kind CHECK (kind IN ('ORIGINAL', 'RESULT'));   -- StageJobImageEntity.Kind
-ALTER TABLE crawl_concert   ADD CONSTRAINT ck_crawl_concert_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'));   -- CrawlConcertEntity.Status
+ALTER TABLE crawl_concert   ADD CONSTRAINT ck_crawl_concert_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'CHANGED'));   -- CrawlConcertEntity.Status
+ALTER TABLE crawl_catalog   ADD CONSTRAINT ck_crawl_catalog_type   CHECK (type IN ('ARTIST', 'ALBUM'));                   -- CrawlCatalogEntity.Type
+ALTER TABLE crawl_catalog   ADD CONSTRAINT ck_crawl_catalog_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'));   -- CrawlCatalogEntity.Status
 ALTER TABLE audit_log       ADD CONSTRAINT ck_audit_result         CHECK (result IN ('OK', 'FAILED', 'DENIED'));   -- AuditLogEntity.Result

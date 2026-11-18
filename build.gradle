@@ -23,6 +23,12 @@ dependencies {
 
     implementation 'org.springframework.security:spring-security-crypto'   // BCrypt 만 — Spring Security 필터 체인은 쓰지 않습니다
     implementation 'com.nimbusds:nimbus-jose-jwt:9.40'      // 나가는 X-Internal-Token (iss=studio) 발급
+    implementation platform('software.amazon.awssdk:bom:2.57.1')
+    implementation('software.amazon.awssdk:s3') {                // 공개 이미지 업로드 주소 · 확인 · KOPIS 포스터 옮기기 (11/18)
+        exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'   // 비동기 클라이언트는 쓰지 않음
+        exclude group: 'software.amazon.awssdk', module: 'apache5-client'     // Spring Boot 3.3 의 httpclient5(5.3)와 맞지 않음 → JDK 연결 클라이언트
+    }
+    implementation 'software.amazon.awssdk:url-connection-client'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
@@ -30,6 +36,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.testcontainers:mysql:1.20.3'
     testImplementation 'org.testcontainers:junit-jupiter:1.20.3'
+    testImplementation 'org.testcontainers:localstack:1.20.3'   // S3ImageStoreTest (S3 업로드 주소 서명 검사까지)
 }
 
 tasks.named('test') {

@@ -68,6 +68,7 @@ CREATE TABLE crawl_concert (
     external_id  VARCHAR(128) NOT NULL,
     source_hash  VARCHAR(128) NULL,
     payload_json MEDIUMTEXT   NOT NULL,                   -- 크롤러가 준 공연 값 그대로
+    previous_json MEDIUMTEXT  NULL,                       -- CHANGED 일 때만 — 등록(또는 마지막 변경 확인) 때의 값 (화면이 비교해 보여 줌 · 11/18)
     status       VARCHAR(16)  NOT NULL,
     received_at  DATETIME(3)  NOT NULL,                   -- 마지막으로 받은 시각
     reviewed_by  BIGINT       NULL,
@@ -78,6 +79,26 @@ CREATE TABLE crawl_concert (
     CONSTRAINT fk_crawl_concert_reviewer FOREIGN KEY (reviewed_by) REFERENCES admin_account (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 CREATE INDEX idx_crawl_concert_status ON crawl_concert (status, id);
+
+-- 크롤러가 넘긴 아티스트(굿즈 포함) · 앨범(트랙 · 피지컬 포함) 후보 — 상품 관리자가 승인하면 Catalog 관리자 적재로 (11/17 결정)
+CREATE TABLE crawl_catalog (
+    id           BIGINT       NOT NULL AUTO_INCREMENT,
+    type         VARCHAR(16)  NOT NULL,                   -- ARTIST · ALBUM
+    source       VARCHAR(32)  NOT NULL,
+    external_id  VARCHAR(128) NOT NULL,
+    source_hash  VARCHAR(128) NULL,
+    payload_json MEDIUMTEXT   NOT NULL,                   -- Catalog 수집 계약 한 항목 (snake_case) · 앨범은 artist_id 대신 artist_ref
+    status       VARCHAR(16)  NOT NULL,
+    received_at  DATETIME(3)  NOT NULL,
+    reviewed_by  BIGINT       NULL,
+    reviewed_at  DATETIME(3)  NULL,
+    catalog_id   BIGINT       NULL,                       -- 승인으로 생긴 catalog 아티스트 · 앨범 id (AWS · FK 없음)
+    last_error   VARCHAR(500) NULL,                       -- 마지막 승인 실패 사유 (Catalog 가 거절한 이유)
+    PRIMARY KEY (id),
+    CONSTRAINT uq_crawl_catalog_source UNIQUE (type, source, external_id),
+    CONSTRAINT fk_crawl_catalog_reviewer FOREIGN KEY (reviewed_by) REFERENCES admin_account (id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+CREATE INDEX idx_crawl_catalog_status ON crawl_catalog (status, id);
 
 -- 작업 기록 — 로그인한 관리자의 요청 1건 = 1행 (조회 포함 · 권한 밖 시도 포함). 개인정보 값 · 검색어 · 본문은 남기지 않습니다.
 CREATE TABLE audit_log (

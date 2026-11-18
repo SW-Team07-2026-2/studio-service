@@ -69,6 +69,13 @@ public abstract class IntegrationTest {
             return new MutableClock();
         }
 
+        /** 진짜 S3 대신 (S3ImageStoreTest 가 MinIO 로 따로 확인) */
+        @Bean
+        @Primary
+        FakeImageStore fakeImageStore() {
+            return new FakeImageStore();
+        }
+
         /** MailSender 빈이 있으면 Spring Boot 가 진짜 SMTP 발송기를 만들지 않습니다 */
         @Bean
         MailBox mailBox() {
@@ -107,6 +114,8 @@ public abstract class IntegrationTest {
     protected MutableClock clock;
     @Autowired
     protected MailBox mail;
+    @Autowired
+    protected FakeImageStore imageStore;
 
     /** 로그인한 관리자 — 세션 쿠키와 CSRF 토큰 */
     public record Session(Cookie cookie, String csrf, JsonNode me) {}

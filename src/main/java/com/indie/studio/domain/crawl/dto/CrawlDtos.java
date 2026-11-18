@@ -3,10 +3,12 @@ package com.indie.studio.domain.crawl.dto;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
@@ -30,14 +32,32 @@ public final class CrawlDtos {
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record ItemResult(String externalId, long id, Result result) {
-        /** REVIEWED — 관리자가 이미 처리한 후보라 바꾸지 않음 */
-        public enum Result { CREATED, UPDATED, UNCHANGED, REVIEWED }
+        /** REVIEWED — 관리자가 이미 처리한 후보라 바꾸지 않음 · CHANGED — 등록한 공연이 출처에서 바뀌어 관리자 확인으로 (공연만) */
+        public enum Result { CREATED, UPDATED, UNCHANGED, REVIEWED, CHANGED }
     }
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record BatchResult(List<ItemResult> items) {}
 
     /** 관리자 화면 (camelCase) */
-    public record CandidateView(long id, String source, String externalId, String status, JsonNode concert,
+    /** previous — CHANGED 일 때 등록(또는 마지막 확인) 때의 값 · 그 밖에는 null */
+    public record CandidateView(long id, String source, String externalId, String status, JsonNode concert, JsonNode previous,
                                 Instant receivedAt, Long reviewedBy, Instant reviewedAt, Long concertId) {}
+
+    /**
+     * POST /internal/crawl/catalog/artists · albums — 한 요청 최대 500건. 항목은 Catalog 수집 계약 그대로 (snake_case)이고
+     * 앨범만 artist_id 대신 artist_ref: { source, external_id } (크롤러는 Catalog id 를 모름 · 승인할 때 Studio 가 바꿈).
+     * 항목 안의 값 검사는 승인할 때 Catalog 가 합니다.
+     */
+    public record CatalogBatch(@NotEmpty @Size(max = 500) List<@NotNull ObjectNode> items) {}
+
+    /** 관리자 화면 (camelCase) — item 은 받은 항목 그대로 · catalogId 가 있으면 이미 Catalog 에 있는 것의 변경 */
+    public record CatalogCandidateView(long id, String type, String source, String externalId, String status, JsonNode item,
+                                       Instant receivedAt, Long reviewedBy, Instant reviewedAt, Long catalogId, String lastError) {}
+
+    /** 여러 건 승인 — 아티스트부터 처리합니다 */
+    public record ApproveMany(@NotEmpty @Size(max = 100) List<@NotNull @Positive Long> ids) {}
+
+    /** 여러 건 승인 결과 — 실패한 것은 code · message (나머지는 계속 처리) */
+    public record ApproveResult(long id, boolean approved, Long catalogId, String code, String message) {}
 }
