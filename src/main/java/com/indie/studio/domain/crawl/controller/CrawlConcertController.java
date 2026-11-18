@@ -32,7 +32,7 @@ public class CrawlConcertController {
         this.crawlConcertService = crawlConcertService;
     }
 
-    /** ?status=PENDING|APPROVED|REJECTED (기본 PENDING) &beforeId= &size= — 최신순 */
+    /** ?status=PENDING|APPROVED|REJECTED|CHANGED (기본 PENDING) &beforeId= &size= — 최신순. CHANGED 는 등록한 공연이 출처에서 바뀐 것 (previous = 전 값) */
     @GetMapping("/api/studio/crawl/concerts")
     @RequirePermission(Permission.CONCERT)
     public ApiResponse<List<CandidateView>> list(@RequestParam(defaultValue = "PENDING") CrawlConcertEntity.Status status,
@@ -47,6 +47,14 @@ public class CrawlConcertController {
     public ApiResponse<JsonNode> approve(@PathVariable @Positive long id, @RequestBody ObjectNode concert,
                                          @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
         return ApiResponse.onSuccess(crawlConcertService.approve(id, concert, admin));
+    }
+
+    /** 바뀐 공연 확인 — 공연 수정(PATCH /api/studio/concerts/{concertId}) · 변경 공지를 한 뒤 누릅니다. 다음 변경은 지금 값과 비교 */
+    @PostMapping("/api/studio/crawl/concerts/{id}/change-checked")
+    @RequirePermission(Permission.CONCERT)
+    public ApiResponse<CandidateView> changeChecked(@PathVariable @Positive long id,
+                                                    @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(crawlConcertService.changeChecked(id, admin));
     }
 
     /** 등록하지 않음 — 같은 후보가 다시 와도 대기 목록에 다시 올리지 않습니다 */

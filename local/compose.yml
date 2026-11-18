@@ -18,5 +18,11 @@ services:
   studio-mail:                                 # 로그인 인증 코드 메일을 받는 가짜 SMTP — 화면 http://localhost:8025 (밖으로 보내지 않음)
     image: axllent/mailpit:v1.21
     ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
+  studio-s3:                                   # 이미지 버킷 대신 (LocalStack S3) — 버킷 indig-images-local · 이미지는 http://localhost:4566/indig-images-local/... 로 보임
+    image: localstack/localstack:3.8.1
+    ports: ["127.0.0.1:4566:4566"]
+    environment:
+      SERVICES: s3
+    volumes: ["./localstack-init.sh:/etc/localstack/init/ready.d/init-s3.sh:ro"]
 volumes:
   studio-mysql:
