@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -131,6 +132,25 @@ class RbacTest extends IntegrationTest {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ALREADY_CHECKED_IN"));
         mvc.perform(as(checker, post("/api/studio/check-in/concerts/31")).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    /** 11/18 재고 설정 — 굿즈 관리자가 옵션 재고를 qty 개로 맞춤 → Catalog PUT 으로 본문 그대로. 다른 역할은 404 */
+    @Test
+    void goodsAdminSetsStockThroughCatalog() throws Exception {
+        Session goods = newAdmin("GOODS");
+        STUB.ok("PUT", "/internal/admin/catalog/options/42/stock", "{\"optionId\":42,\"qty\":15,\"updatedAt\":\"2026-11-18T10:00:00Z\"}");
+
+        mvc.perform(as(goods, put("/api/studio/products/options/42/stock")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"qty\":15,\"reason\":\"첫 입고\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.qty").value(15));
+        JsonNode sent = objectMapper.readTree(STUB.received("PUT", "/internal/admin/catalog/options/42/stock").get(0).bodyText());
+        assertThat(sent.get("qty").asInt()).isEqualTo(15);
+        assertThat(sent.get("reason").asText()).isEqualTo("첫 입고");
+
+        Session stage = newAdmin("STAGE");
+        mvc.perform(as(stage, put("/api/studio/products/options/42/stock")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"qty\":1,\"reason\":\"x\"}")).andExpect(status().isNotFound());
+        assertThat(STUB.received("PUT", "/internal/admin/catalog/options/42/stock")).hasSize(1);
     }
 
     @Test

@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public abstract class IntegrationTest {
 
     public static final String SHARED_SECRET = "test-internal-shared-secret-0123456789abcdef";
+    public static final String CRAWLER_SECRET = "test-crawler-shared-secret-0123456789abcdef";
     protected static final String MASTER_ID = "master";
     protected static final String MASTER_PASSWORD = "correct-horse-battery";
     protected static final String PASSWORD = "sub-admin-password-1";
@@ -83,6 +84,7 @@ public abstract class IntegrationTest {
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
         registry.add("redis.password", () -> REDIS_PASSWORD);
         registry.add("internal.shared-secret", () -> SHARED_SECRET);
+        registry.add("crawler.shared-secret", () -> CRAWLER_SECRET);
         registry.add("gpu.token", () -> "gpu-test-token");
         BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder(4);
         String admins = "# 아이디,이름,역할,메일(;),bcrypt\n"

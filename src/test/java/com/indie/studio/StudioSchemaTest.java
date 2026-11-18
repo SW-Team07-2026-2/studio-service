@@ -1,6 +1,7 @@
 package com.indie.studio;
 
 import com.indie.studio.domain.account.entity.AdminAccountEntity;
+import com.indie.studio.domain.crawl.entity.CrawlConcertEntity;
 import com.indie.studio.domain.stage.entity.StageJobEntity;
 import com.indie.studio.domain.stage.entity.StageJobImageEntity;
 import com.indie.studio.global.audit.AuditLogEntity;
@@ -62,6 +63,7 @@ class StudioSchemaTest extends IntegrationTest {
         assertThat(checks.get("ck_stage_job_status")).isEqualTo(names(StageJobEntity.Status.values()));
         assertThat(checks.get("ck_stage_job_image_kind")).isEqualTo(names(StageJobImageEntity.Kind.values()));
         assertThat(checks.get("ck_audit_result")).isEqualTo(names(AuditLogEntity.Result.values()));
+        assertThat(checks.get("ck_crawl_concert_status")).isEqualTo(names(CrawlConcertEntity.Status.values()));
     }
 
     @Test
