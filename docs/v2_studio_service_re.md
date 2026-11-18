@@ -252,6 +252,7 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | `PATCH /api/studio/products/{id}` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/products/{id}` |
 | `PUT /api/studio/products/{id}/options` | `PRODUCT` | Catalog `PUT /internal/admin/catalog/products/{id}/options` |
 | `POST /api/studio/products/options/{optionId}/stock` | `STOCK` | Catalog `POST /internal/admin/catalog/options/{optionId}/stock` |
+| ✏️ 11/18 `PUT /api/studio/products/options/{optionId}/stock` `{ qty, reason }` | `STOCK` | Catalog `PUT /internal/admin/catalog/options/{optionId}/stock` — 재고를 qty 개로 설정 |
 | `GET /api/studio/products/options/artists` · `/{artistId}` | `PRODUCT` | Catalog `GET /api/catalog/artists` · `/{id}` |
 
 ### 6.6 CS (`CS`)
@@ -396,7 +397,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | | `GET /internal/admin/concerts/users/{userId}/bookings` · `POST /internal/admin/concerts/bookings/{id}/cancel` (CS) |
 | | 공연장 · 공연 · 라인업 · 구역 저장 · 좌석 가격 · 체크인 내부 API 는 이미 있었고 `allowed-issuers` 에 `studio` 도 있었습니다 |
 | **catalog** | `app.internal.admin-issuers: [studio]` (쓰지 않던 `assistant` 삭제) |
-| | `POST` · `PATCH /internal/admin/catalog/products(/{id})` · `PUT …/products/{id}/options` · `POST …/options/{optionId}/stock` |
+| | `POST` · `PATCH /internal/admin/catalog/products(/{id})` · `PUT …/products/{id}/options` · `POST …/options/{optionId}/stock` · ✏️ 11/18 `PUT …/options/{optionId}/stock` |
 | | `GET /internal/admin/catalog/users/{userId}/orders` · `POST /internal/admin/catalog/orders/{id}/cancel` (CS) |
 | **member** | `admin-issuers: [studio]` · `GET /internal/admin/members?q=&size=` · `GET /internal/admin/members/{id}` |
 | **payment** | `admin-issuers: [studio]` · `GET /internal/admin/payments/users/{userId}` |
