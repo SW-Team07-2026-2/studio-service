@@ -137,17 +137,29 @@ public class StageJobService {
         StageJobEntity job = find(jobId);
         if (job.getStatus() != Status.REVIEW) throw new GeneralException(StageErrorCode.STAGE_JOB_NOT_REVIEWABLE);
         JsonNode values = edited != null && !edited.isNull() ? edited : parse(job.getResultJson());
+        ArrayNode saved = sendSections(job.getVenueId(), values, admin);
+        job.sent(values.toString(), admin.id(), clock.instant());
+        jobs.save(job);
+        log.info("stage_job_sent jobId={} venueId={} sections={} adminId={}", jobId, job.getVenueId(), saved.size(), admin.id());
+        return saved;
+    }
+
+    /** GPU 검증 없이 관리자가 넣은 구역 값을 바로 Concert 로 보냅니다 (✏️ 11/18). 작업(stage_job)은 만들지 않습니다 */
+    public JsonNode saveSections(long venueId, JsonNode values, AdminPrincipal admin) {
+        ArrayNode saved = sendSections(venueId, values, admin);
+        log.info("stage_sections_saved venueId={} sections={} adminId={}", venueId, saved.size(), admin.id());
+        return saved;
+    }
+
+    /** 구역마다 PUT 한 번 — 중간에 실패하면 Concert 의 오류가 그대로 나가고, 다시 보내면 Concert 가 같은 구역을 덮어씁니다 */
+    private ArrayNode sendSections(long venueId, JsonNode values, AdminPrincipal admin) {
         List<JsonNode> sections = sections(values);
         if (sections.isEmpty()) throw new GeneralException(StageErrorCode.STAGE_VALUES_INVALID);
-
         ArrayNode saved = objectMapper.createArrayNode();
-        String path = "/internal/admin/concerts/venues/" + job.getVenueId() + "/sections";
+        String path = "/internal/admin/concerts/venues/" + venueId + "/sections";
         for (JsonNode section : sections) {
             saved.add(serviceClient.send(Target.CONCERT, HttpMethod.PUT, path, section, admin));
         }
-        job.sent(values.toString(), admin.id(), clock.instant());
-        jobs.save(job);
-        log.info("stage_job_sent jobId={} venueId={} sections={} adminId={}", jobId, job.getVenueId(), sections.size(), admin.id());
         return saved;
     }
 

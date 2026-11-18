@@ -11,12 +11,14 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -107,6 +109,36 @@ class StageJobFlowTest extends IntegrationTest {
         assertThat(STUB.received("PUT", "/internal/admin/concerts/venues/7/sections").get(2).bodyText()).contains("\"name\":\"B\"");
         mvc.perform(get("/api/studio/stage-jobs/" + jobId).cookie(stage.cookie()))
                 .andExpect(jsonPath("$.result.status").value("SENT")).andExpect(jsonPath("$.result.sent.length()").value(2));
+    }
+
+    @Test
+    void adminSavesSectionsDirectlyWithoutGpu() throws Exception {
+        Session stage = newAdmin("STAGE");
+        STUB.ok("PUT", "/internal/admin/concerts/venues/7/sections", "{\"venueId\":7,\"floorId\":1,\"sectionId\":11,\"seatCount\":2}");
+
+        // 관리자가 넣은 값(구역 두 개)이 GPU 를 거치지 않고 구역마다 Concert 로 갑니다
+        String values = "{\"sections\":[" + SECTION + "," + SECTION.replace("\"name\":\"A\"", "\"name\":\"B\"") + "]}";
+        mvc.perform(as(stage, put("/api/studio/venues/7/sections")).contentType(MediaType.APPLICATION_JSON).content(values))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.length()").value(2));
+        List<StubServer.Received> sent = STUB.received("PUT", "/internal/admin/concerts/venues/7/sections");
+        assertThat(sent).hasSize(2);
+        assertThat(objectMapper.readTree(sent.get(0).bodyText())).isEqualTo(objectMapper.readTree(SECTION));
+        assertThat(sent.get(1).bodyText()).contains("\"name\":\"B\"");
+        assertThat(sent.get(0).headers().get("x-admin-id")).isEqualTo(stage.me().get("id").asText());
+        assertThat(STUB.received("POST", "/v1/stage/verify")).isEmpty();
+        mvc.perform(get("/api/studio/venues/7/stage-jobs").cookie(stage.cookie()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.length()").value(0));   // 무대 작업은 남기지 않습니다
+
+        // 보낼 구역이 없으면 400 — Concert 에는 가지 않습니다
+        mvc.perform(as(stage, put("/api/studio/venues/7/sections")).contentType(MediaType.APPLICATION_JSON).content("[]"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("STAGE_VALUES_INVALID"));
+        assertThat(STUB.received("PUT", "/internal/admin/concerts/venues/7/sections")).hasSize(2);
+
+        // 공연 관리자는 이 API 가 있는지도 모릅니다
+        Session concert = newAdmin("CONCERT");
+        mvc.perform(as(concert, put("/api/studio/venues/7/sections")).contentType(MediaType.APPLICATION_JSON).content(SECTION))
+                .andExpect(status().isNotFound());
+        assertThat(STUB.received("PUT", "/internal/admin/concerts/venues/7/sections")).hasSize(2);
     }
 
     @Test

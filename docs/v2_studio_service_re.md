@@ -12,7 +12,7 @@
 - **계정마다 역할이 하나입니다.** `MASTER` · `STAGE`(무대) · `CONCERT`(공연) · `GOODS`(굿즈 · 피지컬 앨범) · `CS` · `CHECKER`(검표).
 - **하위 관리자는 서로를 모릅니다.** 탭은 `/me` 가 내려준 것만 그리고, 권한 밖 API 는 없는 경로와 똑같은 404 가 나갑니다.
 - **업무 데이터는 Studio 에 없습니다.** 공연 · 상품 · 회원 · 결제는 Concert · Catalog · Member · Payment 내부 API 로 읽고 씁니다 (`X-Internal-Token`, iss=`studio`). 서비스는 AWS 또는 온프레미스(PC)에 있고, KT 에서 `https://link-aws.indig.co.kr` · `https://link-onprem.indig.co.kr` 중 하나를 부릅니다 — 전환은 `manifests-kt` 의 `compose.yml` 한 줄 (`x-link-base-url` · 6.8).
-- **무대 그리기:** 화면에서 그린 값 + 도면 사진 → Studio(KT) → 개인 GPU 서버(WireGuard) 검증 → 사진과 값이 화면으로 → 무대 관리자가 확인 → Concert 로 전송. **S3 는 거치지 않습니다.** 사진은 Studio DB 에 둡니다.
+- **무대 그리기:** 화면에서 그린 값 + 도면 사진 → Studio(KT) → 개인 GPU 서버(WireGuard) 검증 → 사진과 값이 화면으로 → 무대 관리자가 확인 → Concert 로 전송. **S3 는 거치지 않습니다.** 사진은 Studio DB 에 둡니다. ✏️ 11/18 GPU 검증 없이 관리자가 구역 값을 바로 저장하는 API 도 있습니다 (5.4).
 - **관리자의 요청은 전부 `audit_log` 에 남습니다** (조회 · 권한 밖 시도 포함). 검색어 · 본문 · 개인정보 값은 남기지 않습니다.
 - 테이블은 4개입니다: `admin_account` · `stage_job` · `stage_job_image` · `audit_log`. ✏️ 11/16 `admin_login_challenge` · `admin_session` 은 Redis 키로 옮겼습니다 (2장).
 - **이전 설계는 폐기했습니다.** `docs/22`(§2 · §3) · `docs/24` · `docs/34_관리자_서비스_ERD.html` 은 이 문서와 다릅니다. 파일은 남겨 두고 각 문서 머리에 "폐기" 를 표시했습니다 (12장 ⑨).
@@ -185,6 +185,20 @@ POST {GPU_BASE_URL}/v1/stage/verify      multipart/form-data
 - GPU 서버는 WireGuard 피어 주소로만 열고, `X-Gpu-Token` 을 확인해야 합니다.
 - `drawing` 의 모양은 Studio 가 정하지 않습니다 (JSON 객체 · 배열이면 통과). 화면과 GPU 서버가 맞춥니다 (12장 ④).
 
+### 5.4 GPU 없이 바로 저장 (✏️ 11/18)
+
+GPU 검증 서버를 만들지 않을 수 있어서(11/18 사용자) 관리자가 구역 값을 직접 넣는 길을 따로 두었습니다. 5.1 ~ 5.3 의 검증 흐름은 그대로 있습니다.
+
+```
+PUT /api/studio/venues/{venueId}/sections      권한 STAGE_DRAW · X-CSRF-Token
+본문  구역 하나 · 구역 배열 · { "sections": [...] }   (5.1 의 구역 모양 — confirm 과 같음)
+200   구역마다 Concert 응답 배열 [{ venueId, floorId, sectionId, seatCount }, …]
+```
+
+- 사진이 필요 없고, 무대 작업(`stage_job`)을 만들지 않습니다. 남는 것은 작업 기록(`audit_log`)뿐입니다.
+- 구역마다 Concert `PUT /internal/admin/concerts/venues/{venueId}/sections` 를 한 번씩 부릅니다. 구역의 `venueId` 가 경로와 다르면 Concert 가 400 을 냅니다.
+- 보낼 구역이 없으면 400 `STAGE_VALUES_INVALID`. 중간에 Concert 가 거절하면(예: 409 `SECTION_IN_USE`) 그 오류가 그대로 나가고, 앞서 보낸 구역은 저장된 채입니다. 고쳐서 다시 보내면 같은 구역을 덮어씁니다.
+
 ## 6. API
 
 공통: 응답은 `{ isSuccess, code, message, result, correlationId }` 입니다. `/api/studio/**` 는 로그인 2개 경로를 빼고 전부 세션이 필요합니다 (없으면 401 `UNAUTHENTICATED`).
@@ -221,6 +235,7 @@ POST {GPU_BASE_URL}/v1/stage/verify      multipart/form-data
 | `GET /api/studio/stage-jobs/{jobId}` | `STAGE_DRAW` | (Studio) `drawing` · `values` · `sent` · `resultImage` 포함 |
 | `GET /api/studio/stage-jobs/{jobId}/image` | `STAGE_DRAW` | (Studio) `?kind=RESULT`(기본) \| `ORIGINAL` |
 | `POST /api/studio/stage-jobs/{jobId}/confirm` | `STAGE_DRAW` | Concert `PUT /internal/admin/concerts/venues/{id}/sections` (구역마다) |
+| ✏️ 11/18 `PUT /api/studio/venues/{venueId}/sections` | `STAGE_DRAW` | GPU 검증 없이 Concert `PUT /internal/admin/concerts/venues/{id}/sections` (구역마다 · 5.4) |
 
 ### 6.4 공연 (`CONCERT`)
 
@@ -479,7 +494,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | `AuthFlowTest` | 7 | 비밀번호 → 메일 인증 코드 → 대시보드(응답에 코드 없음 · 쓴 코드 재사용 거부) · 공용 계정은 모든 주소에 같은 코드(`bootstrap.admins` 로 심은 계정) · 5분 만료와 코드 5회 실패 · 메일 실패 시 503 이고 대기 없음 · 5회 실패 잠금 · 30분 무응답 / 8시간 만료 · 내 비밀번호 변경 |
 | `RbacTest` | 8 | 역할별 탭과 닿는 API(검표 포함 6개 역할) · 권한 밖은 없는 경로와 같은 404 + `DENIED` 기록 · 내부 토큰 `iss` / `aud` · 대상 오류 전달(401 로는 안 나감) · CSRF(막힌 요청도 기록) · 계정 관리와 즉시 반영 · 모든 핸들러의 권한 선언 · 검표 요청의 `checkerId` = 세션의 관리자 id |
 | `CrawlIntakeTest` | 7 | 크롤러 토큰만 통과(키 없음 · 서비스 공유 키 · 다른 `iss` / `aud` · 만료 → 401, 크롤러 토큰으로 관리자 API 401) · 공연 후보 CREATED → 같은 해시 UNCHANGED → UPDATED → 공연 관리자만 목록(다른 역할 404) → 등록 때 `source` · `externalId` 를 후보 값으로 덮어 Concert 로 · 처리 뒤 REVIEWED · 두 번 처리 409 · 등록 안 함 · 아티스트 · 앨범은 받기만 하고 Catalog 호출 없음 → 상품 관리자만 목록 → 앨범 먼저 승인 409 → 아티스트 승인(본문 그대로 · Studio 토큰 · `X-Admin-Id`) → 앨범 승인 때 `artist_ref` → `artist_id` · 승인된 것의 변경은 다시 PENDING · Catalog FAILED 는 422 + `lastError` · 고친 값으로 승인 · 적재 안 함 → REVIEWED · 여러 건 승인은 아티스트부터 · 열쇠 없으면 400 · diff 는 그대로 |
-| `StageJobFlowTest` | 3 | GPU 검증 → 확인 → Concert 수신(확인 전에는 0건) · 값 수정 후 전송과 Concert 거절 뒤 재시도 · 잘못된 업로드 거절과 GPU 실패 표시 |
+| `StageJobFlowTest` | 4 | GPU 검증 → 확인 → Concert 수신(확인 전에는 0건) · 값 수정 후 전송과 Concert 거절 뒤 재시도 · 잘못된 업로드 거절과 GPU 실패 표시 · ✏️ 11/18 GPU 없이 구역 바로 저장(구역마다 전송 · GPU 호출 0 · 무대 작업 0 · 빈 값 400 · 공연 관리자 404) |
 | `StudioSchemaTest` | 3 | 마이그레이션이 V1(구조) · V2(값) 두 개뿐 · CHECK 값 = Java enum · DB 에 해시와 암호문만 있음 · ✏️ Redis 키는 `studio:auth:*` + 64자 해시이고 모두 만료가 걸림 · 세션 테이블이 MySQL 에 없음 · 2단계 대기에는 인증 코드 해시만 |
 
 로컬에서 직접 확인한 것: 앱 기동(Flyway 적용 · readiness UP) → 첫 마스터 생성 → 로그인 → OTP 등록 → `/me` 에 탭 6개(검표 추가 전 — 지금은 7개) → 세션 없이 401 · Concert 가 없을 때 503.
@@ -495,7 +510,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 - 로그인 뒤 `GET /api/studio/me` 를 부르고, **`menus` 에 있는 탭만** 그립니다. 탭 이름을 화면 코드에 고정해 두고 역할로 숨기는 방식은 쓰지 않습니다 (다른 역할의 탭 이름이 번들에 남습니다 — 12장 ⑧).
 - POST · PUT · PATCH · DELETE 에는 `X-CSRF-Token: <me.csrfToken>` 을 붙입니다.
 - 401 `UNAUTHENTICATED` → 로그인 화면으로. 404 는 "없는 페이지" 로만 보여 줍니다 (권한 안내 문구 금지).
-- 무대 그리기: 검증 요청 뒤 작업을 2~3초마다 조회하고 `REVIEW` 가 되면 `…/image` 와 `values` 를 보여 줍니다. `FAILED` 면 `errorMessage` 를 보여 주고 다시 요청하게 합니다.
+- 무대 그리기: 검증 요청 뒤 작업을 2~3초마다 조회하고 `REVIEW` 가 되면 `…/image` 와 `values` 를 보여 줍니다. `FAILED` 면 `errorMessage` 를 보여 주고 다시 요청하게 합니다. ✏️ 11/18 GPU 없이 쓸 때는 화면이 만든 구역 값을 `PUT /api/studio/venues/{venueId}/sections` 로 바로 보냅니다 (5.4 · 폴링 없음).
 - 검표 탭: 카메라로 QR 을 읽어 `token` 만 보냅니다. 409 `ALREADY_CHECKED_IN` 이면 응답의 `checkedInAt`(먼저 입장한 시각)을 보여 줍니다.
 - 502 · 503 은 Studio 가 아니라 연결된 서비스 문제입니다. 로그아웃시키지 않습니다.
 
@@ -541,6 +556,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | 2026-11-17 | 운영 배포 (main · KT): `studio` 스키마를 비우고 V1 · V2 다시 적용 → 공용 계정 5개 생성 → `admin.indig.co.kr` 에서 비밀번호 → 메일 코드 → 세션 · `/me` · 계정 목록 · 로그아웃(CSRF)까지 실제 확인 |
 | 2026-11-17 | 크롤러 받는 쪽 (결정 A1 · B1 · C1): `/internal/crawl/concerts` → 후보 `crawl_concert` → 공연 관리자 등록 · 등록 안 함 (`/api/studio/crawl/concerts`), `/internal/crawl/catalog/*` → Catalog `/internal/admin/catalog/ingest/*` 로 바로. 크롤러 토큰 `iss=crawler` · 키 `crawler.shared-secret` (6.9). V1 에 테이블 1개 · V2 에 CHECK 1개 → 🔴 KT 운영 반영 때 studio 스키마 비우기. 테스트 25건 |
 | 2026-11-17 | 결정 변경(사용자): 아티스트 · 앨범 · 상품도 Catalog 로 바로 보내지 않고 후보 `crawl_catalog` → 상품 관리자 승인(`/api/studio/crawl/catalog`). 앨범은 `artist_ref` → 승인된 아티스트 `catalog_id`. 승인된 것의 변경은 다시 대기. V1 에 테이블 1개 · V2 에 CHECK 2개 (PR #11 과 함께 main 에 올리면 스키마 비우기는 한 번). 테스트 28건 |
+| 2026-11-18 | GPU 없이 구역 값을 바로 저장하는 `PUT /api/studio/venues/{venueId}/sections` 추가 (5.4 · GPU 검증 서버를 만들지 않을 수 있어서 · 검증 흐름은 그대로 둠). 테스트 1건 |
 
 문서를 쓰다가 찾아 고친 것: CSRF 로 막힌 요청이 작업 기록에 남지 않던 문제 (인터셉터가 요청을 막으면 완료 콜백이 불리지 않음 → 막는 자리에서 직접 기록 · 테스트 추가).
 

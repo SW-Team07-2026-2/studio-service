@@ -19,6 +19,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -73,6 +74,19 @@ public class StageController {
     public ApiResponse<JsonNode> layout(@PathVariable @Positive long venueId,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
         return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/internal/admin/concerts/venues/" + venueId + "/layout", null, admin));
+    }
+
+    /**
+     * 구역 값을 GPU 검증 없이 바로 저장합니다 (✏️ 11/18 — GPU 검증 서버를 만들지 않을 수 있어 둔 길).
+     * 본문은 confirm 과 같은 모양 — 구역 하나 · 구역 배열 · { sections: [...] }. 구역마다 Concert 에 한 번씩 보냅니다.
+     * 무대 작업(stage_job)은 남기지 않고 작업 기록(audit_log)만 남습니다.
+     */
+    @PutMapping("/api/studio/venues/{venueId}/sections")
+    @RequirePermission(Permission.STAGE_DRAW)
+    public ApiResponse<JsonNode> saveSections(@PathVariable @Positive long venueId,
+                                              @RequestBody JsonNode values,
+                                              @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(stageJobService.saveSections(venueId, values, admin));
     }
 
     /** 무대 그리기 검증 요청 — multipart: image(도면 사진) + drawing(그린 값 JSON). 바로 응답하고 검증은 뒤에서 돕니다 */
