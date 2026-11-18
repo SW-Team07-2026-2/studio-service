@@ -89,6 +89,14 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.POST, "/internal/admin/catalog/options/" + optionId + "/stock", body, admin));
     }
 
+    /** 재고 설정 — { qty, reason }. 옵션 재고를 qty 개로 맞춥니다 (수집 · 시드로 들어온 상품은 재고 0 으로 들어와 여기서 정함) */
+    @PutMapping("/api/studio/products/options/{optionId}/stock")
+    @RequirePermission(Permission.STOCK)
+    public ApiResponse<JsonNode> setStock(@PathVariable @Positive long optionId, @RequestBody JsonNode body,
+                                          @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PUT, "/internal/admin/catalog/options/" + optionId + "/stock", body, admin));
+    }
+
     /** 굿즈를 걸 아티스트 찾기 — ?q=&genre=&page=&size= */
     @GetMapping("/api/studio/products/options/artists")
     @RequirePermission(Permission.PRODUCT)
