@@ -1,7 +1,7 @@
 # studio-service v2 (관리자 서비스)
 
 > **상태: 구현 완료 · main 머지 (2026-11-13, `6c1d371`) · 배포 안 됨.** 같은 날 검표 역할을 추가하고 마이그레이션을 두 파일(V1 구조 · V2 값)로 정리했습니다.
-> 테스트 25건 통과 (건너뜀 0 · Docker 필요 · ✏️ 11/17 크롤러 받는 쪽 4건 추가). Studio 가 부르는 내부 API 는 concert · catalog · member · payment 에 모두 만들었습니다 (9장).
+> 테스트 28건 통과 (건너뜀 0 · Docker 필요 · ✏️ 11/17 크롤러 받는 쪽 7건 — 아티스트 · 앨범도 승인 대기). Studio 가 부르는 내부 API 는 concert · catalog · member · payment 에 모두 만들었습니다 (9장).
 > ✏️ **11/16 KT Cloud 를 받아 배포 설정을 만들었습니다** — KT 는 AWS · PC 클러스터에 붙지 않고 **VM 한 대의 docker compose** 로 돌며(MySQL · Redis · Studio · Prometheus · Grafana), AWS 또는 온프레미스(PC)를 Cloudflare 관리자 터널로 부릅니다 (`SW-Team07-2026-2/manifests-kt` README · 9장). 같은 날 **로그인 2단계 대기 · 세션을 MySQL 에서 Redis 로** 옮겼습니다 (2장 · 4장). 실제 KT VM · GPU 서버 · 서비스 연동은 아직 확인하지 못했습니다 (10장).
 > 전 서비스 공통의 남은 일은 `indie-msa/docs/v2_후속_작업.md`, 전체 API 는 `indie-msa/docs/v2_API_명세서.md`, 관리자 화면 확인 사항은 `indie-msa/docs/v2_프론트_체크사항.md` 에 있습니다.
 
@@ -38,7 +38,7 @@ id 는 모두 `BIGINT AUTO_INCREMENT`, 시각은 UTC `DATETIME(3)`, enum 은 `VA
 | 파일 | 내용 |
 |---|---|
 | `V1__studio_schema.sql` | 구조 — 테이블 · 키 · 인덱스 |
-| `V2__studio_values.sql` | 값 — enum 값 목록 CHECK 6개 (`ck_admin_role` · `ck_admin_status` · `ck_stage_job_status` · `ck_stage_job_image_kind` · `ck_crawl_concert_status` · `ck_audit_result`) |
+| `V2__studio_values.sql` | 값 — enum 값 목록 CHECK 6개 (`ck_admin_role` · `ck_admin_status` · `ck_stage_job_status` · `ck_stage_job_image_kind` · `ck_crawl_concert_status` · `ck_crawl_catalog_type` · `ck_crawl_catalog_status` · `ck_audit_result`) |
 
 - 🔴 구조나 값을 바꾸면 **파일을 고치고 DB 스키마를 비운 뒤 다시 올립니다.** 적용된 DB 를 두고 파일만 고치면 Flyway 체크섬 검증에 걸려 서비스가 뜨지 않습니다. 실제 데이터가 쌓인 뒤에는 이 규칙을 쓸 수 없고 `V3` 부터 추가해야 합니다.
 - 이전 `V1`(CHECK 포함)로 만든 로컬 DB 는 지우고 다시 만듭니다 (`docker compose -f local/compose.yml down -v`).
@@ -49,6 +49,7 @@ id 는 모두 `BIGINT AUTO_INCREMENT`, 시각은 UTC `DATETIME(3)`, enum 은 `VA
 | `stage_job` | `id` · `venue_id` · `venue_name` · `status` · `drawing_json` · `result_json` · `sent_json` · `error_message` · `requested_by`(FK) · `sent_by`(FK) · `created_at` · `analyzed_at` · `sent_at` |
 | `stage_job_image` | `id` · `job_id`(FK · CASCADE) · `kind` · `content_type` · `data`(LONGBLOB) — UNIQUE(`job_id`, `kind`) |
 | `crawl_concert` | `id` · `source` · `external_id` — UNIQUE(`source`, `external_id`) · `source_hash` · `payload_json`(크롤러가 준 값 그대로) · `status` · `received_at` · `reviewed_by`(FK) · `reviewed_at` · `concert_id` (11/17 · 6.9) |
+| `crawl_catalog` | `id` · `type`(ARTIST · ALBUM) · `source` · `external_id` — UNIQUE(`type`, `source`, `external_id`) · `source_hash` · `payload_json`(Catalog 수집 계약 한 항목 · 앨범은 `artist_ref`) · `status` · `received_at` · `reviewed_by`(FK) · `reviewed_at` · `catalog_id` · `last_error` (11/17 · 6.9) |
 | `audit_log` | `id` · `occurred_at` · `admin_id`(FK) · `role` · `method` · `path` · `status` · `result` · `client_ip` · `duration_ms` |
 
 - **`admin_account` 의 행은 지우지 않습니다.** 작업 기록 · 무대 작업 · AWS 쪽 기록이 이 id 를 가리킵니다. 퇴사 · 업무 종료는 `DISABLED` 입니다. 삭제 API 가 없습니다.
@@ -78,6 +79,7 @@ id 는 모두 `BIGINT AUTO_INCREMENT`, 시각은 UTC `DATETIME(3)`, enum 은 `VA
 | `stage_job.status` | `PENDING` · `ANALYZING` · `REVIEW` · `SENT` · `FAILED` |
 | `stage_job_image.kind` | `ORIGINAL` · `RESULT` |
 | `crawl_concert.status` | `PENDING`(확인 대기) · `APPROVED`(Concert 에 등록) · `REJECTED`(등록 안 함) |
+| `crawl_catalog.type` · `status` | `ARTIST` · `ALBUM` / `PENDING`(승인 대기) · `APPROVED`(Catalog 에 적재) · `REJECTED`(적재 안 함) |
 | `audit_log.result` | `OK` · `FAILED` · `DENIED` |
 
 값 목록은 DB CHECK(`V2`)와 Java enum 양쪽에 있고 `StudioSchemaTest` 가 둘을 대조합니다.
@@ -233,10 +235,13 @@ POST {GPU_BASE_URL}/v1/stage/verify      multipart/form-data
 | `GET /api/studio/concerts/options/venues` | `CONCERT` | Concert `GET /api/concerts/venues` |
 | `GET /api/studio/concerts/options/venues/{venueId}/layout` | `SEAT_PRICE` | Concert `GET /internal/admin/concerts/venues/{id}/layout` |
 | `GET /api/studio/concerts/options/artists` | `CONCERT` | Catalog `GET /api/catalog/artists` |
+| ✏️ 11/18 `GET`/`POST /api/studio/concerts/{id}/notices` · `PATCH`/`DELETE …/notices/{noticeId}` | `CONCERT` | Concert `/internal/admin/concerts/{id}/notices(/{noticeId})` — 변경 공지 `{ kind: SCHEDULE·VENUE·LINEUP·BOOKING·CANCEL·ETC, title, body }`. 올리면 Concert 가 `concert.notice_posted` → Member 가 라인업 팔로워 + 확정 예매자에게 알림. 고치기 · 지우기는 알림 없음 |
+| ✏️ 11/18 `POST /api/studio/concerts/images` | `CONCERT` | (Studio 안) 이미지 업로드 주소 — 6.10 |
 
 - 공연 생성 · 수정 본문에 상세(`description`) · 약관(`terms`) · 요구사항(`requirements`) · 포스터(`posterUrl`) · 이미지(`imageUrls` — 배열)를 넣을 수 있습니다. Concert 가 저장하고 공개 상세 응답에 담습니다. Studio 는 본문을 그대로 넘깁니다.
 - `genre` 는 Catalog 의 장르 목록(23개)과 같은 값만 받습니다. 목록에 없는 값이면 Concert 가 400 을 냅니다.
-- **크롤링한 공연은 Studio 를 거쳐 저장합니다 (2026-11-13 결정).** 수집기는 포스터 · 이미지를 S3 에 올리고 URL 을 넘깁니다. 공연 관리자가 확인한 뒤 Studio 가 `POST /api/studio/concerts` 로 Concert 에 저장합니다 — `posterUrl` · `imageUrls` 에 수집기가 준 S3 URL, `source` · `externalId` 에 수집 출처를 넣습니다 (Concert 는 `(source, externalId)` 가 이미 있으면 409 `CONFLICT` + `concertId` 를 냅니다). 라인업 아티스트는 Concert 가 Catalog 에서 복제해 둔 아티스트여야 하므로 아티스트가 Catalog 에 먼저 있어야 합니다. 단독 공연(`SOLO`)은 `genre` 를 보내지 않습니다 (아티스트 장르를 씀). Gateway 의 공연 수집 경로는 없습니다 (관리자 검수 후에만 등록).
+- ✏️ 11/18 `posterUrl` · `imageUrls` 는 우리 버킷 주소만 받습니다 (6.10 · 저장 전에 파일이 있는지 확인).
+- **크롤링한 공연은 Studio 를 거쳐 저장합니다 (2026-11-13 결정).** ~~수집기는 포스터 · 이미지를 S3 에 올리고 URL 을 넘깁니다.~~ ✏️ 11/18 수집기는 KOPIS 포스터 · 소개 이미지 주소를 넘기고, 승인할 때 Studio 가 받아 우리 버킷에 올립니다 (6.9 · 6.10). 공연 관리자가 확인한 뒤 Studio 가 `POST /api/studio/concerts` 로 Concert 에 저장합니다 — `posterUrl` · `imageUrls` 에 수집기가 준 S3 URL, `source` · `externalId` 에 수집 출처를 넣습니다 (Concert 는 `(source, externalId)` 가 이미 있으면 409 `CONFLICT` + `concertId` 를 냅니다). 라인업 아티스트는 Concert 가 Catalog 에서 복제해 둔 아티스트여야 하므로 아티스트가 Catalog 에 먼저 있어야 합니다. 단독 공연(`SOLO`)은 `genre` 를 보내지 않습니다 (아티스트 장르를 씀). Gateway 의 공연 수집 경로는 없습니다 (관리자 검수 후에만 등록).
 - ✏️ 11/17: 수집기가 넘긴 공연은 Studio 가 후보(`crawl_concert`)로 받아 두고, 공연 관리자가 "수집 대기" 목록에서 확인 · 보완해 등록합니다 (6.9).
 
 ### 6.5 굿즈 · 피지컬 앨범 (`GOODS`)
@@ -254,6 +259,12 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | `POST /api/studio/products/options/{optionId}/stock` | `STOCK` | Catalog `POST /internal/admin/catalog/options/{optionId}/stock` |
 | ✏️ 11/18 `PUT /api/studio/products/options/{optionId}/stock` `{ qty, reason }` | `STOCK` | Catalog `PUT /internal/admin/catalog/options/{optionId}/stock` — 재고를 qty 개로 설정 |
 | `GET /api/studio/products/options/artists` · `/{artistId}` | `PRODUCT` | Catalog `GET /api/catalog/artists` · `/{id}` |
+| ✏️ 11/18 `PATCH /api/studio/products/artists/{artistId}` `{ profileUrl }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/artists/{id}` — 아티스트 사진 |
+| ✏️ 11/18 `GET /api/studio/products/albums/{albumId}` | `PRODUCT` | Catalog `GET /api/catalog/albums/{id}` |
+| ✏️ 11/18 `PATCH /api/studio/products/albums/{albumId}` `{ thumbnailUrl?, tracks?: [{ trackNo, genres?, tempo?, moods?, emotions?, styles? }] }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/albums/{id}` — 표지 · 트랙 태그 (null 은 그대로 · `[]` 은 비움) |
+| ✏️ 11/18 `POST /api/studio/products/images` | `PRODUCT` | (Studio 안) 이미지 업로드 주소 — 6.10 |
+
+- ✏️ 11/18 상품 등록 · 수정의 `thumbnailUrl`, 아티스트 `profileUrl`, 앨범 `thumbnailUrl` 은 우리 버킷 주소만 받습니다 (6.10). 크롤러가 다시 보내도 관리자가 넣은 이미지 · 트랙 태그 · 판매가는 지워지지 않습니다 (Catalog 가 null 이면 유지).
 
 ### 6.6 CS (`CS`)
 
@@ -298,20 +309,45 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 
 | 경로 (크롤러가 부름) | 하는 일 |
 |---|---|
-| `POST /internal/crawl/concerts` | 공연 후보 받기 — `{ items: [{ source, external_id, source_hash, concert: {...} }] }` 최대 100건 → 항목별 `CREATED` · `UPDATED` · `UNCHANGED`(같은 해시) · `REVIEWED`(이미 처리한 후보라 그대로) |
-| `POST /internal/crawl/catalog/artists` · `/albums` · `/diff` | 확인 없이 바로 Catalog `POST /internal/admin/catalog/ingest/*` 로 넘김 (Studio 토큰 · `X-Admin-Id` 없음). 본문 · 결과는 Catalog 수집 계약(catalog 문서 7.3 · snake_case) 그대로. 넘긴 결과는 로그 `crawl_forwarded` 한 줄 |
+| `POST /internal/crawl/concerts` | 공연 후보 받기 — `{ items: [{ source, external_id, source_hash, concert: {...} }] }` 최대 100건 → 항목별 `CREATED` · `UPDATED` · `UNCHANGED`(같은 해시) · `REVIEWED`(등록 안 함으로 처리한 후보라 그대로) · ✏️ 11/18 `CHANGED`(등록한 공연이 바뀌어 옴 — 아래) |
+| `POST /internal/crawl/catalog/artists` · `/albums` | ✏️ 11/17 오후 변경: **바로 넘기지 않고** 후보(`crawl_catalog`)로 받음 — `{ items: [...] }` 최대 500건 · 항목은 Catalog 수집 계약(catalog 문서 7.3 · snake_case) 그대로, 앨범만 `artist_id` 대신 `artist_ref: { source, external_id }`. Studio 는 열쇠(`source` · `external_id` · 앨범의 `artist_ref`)만 검사 → 항목별 `CREATED` · `UPDATED` · `UNCHANGED` · `REVIEWED`(적재 안 함으로 처리된 것) |
+| `POST /internal/crawl/catalog/diff` | 조회라 그대로 Catalog `POST /internal/admin/catalog/ingest/diff` 로 (Studio 토큰 · `X-Admin-Id` 없음) |
 
 | 경로 (관리자 화면) | 권한 | 하는 일 |
 |---|---|---|
 | `GET /api/studio/crawl/concerts?status=&beforeId=&size=` | `CONCERT` | 수집 대기 목록 (기본 `PENDING` · 최신순 · 커서) — `{ id, source, externalId, status, concert, receivedAt, reviewedBy, reviewedAt, concertId }` |
 | `POST /api/studio/crawl/concerts/{id}/approve` | `CONCERT` | 등록 — 본문은 `POST /api/studio/concerts` 와 같음 (화면이 후보 값으로 채우고 공연장 · 라인업 id 등을 보완). Studio 가 `source` · `externalId` 를 후보 값으로 넣어 Concert 에 보내고 `concertId` 를 남김 |
 | `POST /api/studio/crawl/concerts/{id}/reject` | `CONCERT` | 등록 안 함 — 같은 후보가 다시 와도 대기 목록에 다시 올리지 않음 |
+| ✏️ 11/18 `POST /api/studio/crawl/concerts/{id}/change-checked` | `CONCERT` | 바뀐 공연을 반영했음 — `CHANGED` → `APPROVED` · `previous` 비움 (공연 수정 · 변경 공지는 관리자가 따로) · `CHANGED` 가 아니면 409 `CRAWL_CONCERT_REVIEWED` |
+| `GET /api/studio/crawl/catalog?status=&type=&beforeId=&size=` | `PRODUCT` | 아티스트 · 앨범 수집 대기 (기본 `PENDING` · `type` 없으면 둘 다) — `{ id, type, source, externalId, status, item, receivedAt, reviewedBy, reviewedAt, catalogId, lastError }`. `catalogId` 가 있으면 이미 Catalog 에 있는 것의 변경 |
+| `POST /api/studio/crawl/catalog/{id}/approve` | `PRODUCT` | 승인 → 그 한 건을 Catalog `/internal/admin/catalog/ingest/{artists·albums}` 로 (`X-Admin-Id` 붙음). 본문을 비우면 받은 값, 넣으면 고친 항목으로 저장해 보냄 (`source` · `external_id` 는 후보 값). 앨범은 `artist_ref` 를 승인된 아티스트의 `catalog_id` 로 바꿔 `artist_id` 로 → 아직이면 409 `CRAWL_ARTIST_NOT_APPROVED`. Catalog 가 항목을 거절하면 422 `CRAWL_CATALOG_FAILED`(사유 = message) · 후보는 `PENDING` + `lastError`. 11/18: 앨범의 `physical_albums[].options[].price` · 아티스트의 `goods[].options[].price` 가 0 이하이면 422 `CRAWL_PRICE_REQUIRED`. ✏️ 11/18 오후 판매가는 관리자가 넣는 값이라 크롤러는 null 로 보냄 → null 은 통과해 Catalog 가 판단 (기존 옵션은 저장된 값 유지 · 새 옵션은 판매가가 없으면 `CRAWL_CATALOG_FAILED` "새 옵션 'X' 의 판매가가 필요합니다" → 고친 항목으로 가격을 넣거나 `physical_albums` · `goods` 를 null 로). 이미지 주소(`profile_url` · `thumbnail_url` · `goods[]` · `physical_albums[]`)가 있으면 우리 버킷 파일인지 확인 (6.10). 출처 `evidence` 는 목록 · 상세에 보이고 Catalog 로는 빼고 보냄 |
+| `POST /api/studio/crawl/catalog/approve` | `PRODUCT` | 여러 건 승인 `{ ids }` (최대 100) — 아티스트부터 · 실패해도 계속 → `[{ id, approved, catalogId, code, message }]` |
+| `POST /api/studio/crawl/catalog/{id}/reject` | `PRODUCT` | 적재 안 함 — 다시 와도 대기 목록에 올리지 않음 |
 
 - **인증:** `X-Internal-Token` HS256 `{ iss: crawler, aud: studio, exp }` (시계 오차 30초). 서명 키는 시크릿 `crawler.shared-secret` (8.3) — 🔴 서비스 공유 키(`internal.shared-secret`)와 다른 값입니다. 같으면 크롤러가 `iss=studio` 토큰을 만들어 Studio 를 건너뛸 수 있습니다. 파일이 없으면 `/internal/crawl/**` 는 전부 401 입니다.
 - `/internal/crawl/**` 은 관리자 세션 · 작업 기록 대상이 아니고 KT compose 안에서만 부릅니다 (`http://studio:8085`). 밖에서는 `admin.indig.co.kr` 의 WAF ④ 가 `/api/studio/` 밖 경로를 막습니다.
-- 확인한 뒤(`APPROVED` · `REJECTED`)에 크롤러가 바뀐 값을 보내도 후보는 그대로입니다. 등록한 공연의 변경은 공연 수정(6.4)으로 합니다.
+- ~~공연: 확인한 뒤(`APPROVED` · `REJECTED`)에 크롤러가 바뀐 값을 보내도 후보는 그대로입니다.~~ ✏️ 11/18 공연: `REJECTED` 는 그대로(`REVIEWED`). **등록한(`APPROVED`) 공연이 다른 해시로 오면 `CHANGED`** — 처음 바뀔 때 그때까지의 값을 `previous_json` 에 남기고(V1 · 계속 바뀌어도 첫 기준 유지) 새 값으로 바꿈. 목록 · 상세에 `previous` 로 보여 줘 화면이 비교. 관리자는 공연 수정(6.4) · 변경 공지를 하고 `change-checked`.
+- ✏️ 11/18 공연 승인 때 이미지: 본문의 `posterUrl` · `imageUrls` 중 KOPIS 주소(`app.image.import-hosts`)는 Studio 가 받아 우리 버킷(`poster/` · `concert/`)에 올리고 그 주소로 바꿔 Concert 에 보냅니다. 못 받으면 502 `IMAGE_IMPORT_FAILED`(관리자가 직접 올림). 그 밖의 주소는 우리 버킷 파일만.
+- 아티스트 · 앨범: 승인된 것이 다른 `source_hash` 로 다시 오면 **다시 `PENDING`** 입니다 (새 굿즈 · 트랙 · 피지컬도 승인을 거침 · `catalogId` 유지). `REJECTED` 는 그대로입니다.
+- ✏️ 11/17 오후 결정: Catalog 에 적재되는 순간 팔로워 알림 이벤트(`album.released` 등)가 나가므로 크롤러가 보낸 것은 **전부 관리자 승인 뒤** 사용자 서비스로 갑니다.
 - 같은 후보를 두 관리자가 동시에 등록하면 Concert 의 `(source, externalId)` 유일 조건 때문에 뒤쪽이 409 `CONFLICT` 를 받습니다.
 - 아티스트 · 앨범 · 상품을 바로 넘기는 이유: 11/17 결정 (B1) — 공연만 관리자가 확인합니다. 잘못 들어간 상품은 상품 관리(6.5)에서 고칩니다.
+
+### 6.10 이미지 (11/18 결정 · 구현)
+
+상품 · 공연 이미지는 관리자가 **파일로 올립니다** (주소 붙여넣기 없음). 파일은 Studio 를 거치지 않고 브라우저 → S3 로 바로 갑니다.
+
+| 메서드 · 경로 | 권한 | 하는 일 |
+|---|---|---|
+| `POST /api/studio/products/images` | `PRODUCT` | `{ kind: ARTIST·ALBUM·GOODS·PHYSICAL, contentType, size }` → `{ uploadUrl, method: "PUT", headers, imageUrl, expiresAt }` |
+| `POST /api/studio/concerts/images` | `CONCERT` | `{ kind: POSTER·CONCERT, contentType, size }` → 같음 |
+
+- 키 `{kind}/{yyyy}/{MM}/{uuid}.{ext}` · 공개 주소 `app.image.public-base-url`(기본 `https://img.indig.co.kr`) + 키. 형식 `image/jpeg` · `png` · `gif` · `webp` · 최대 `app.image.max-bytes`(5MB) · 업로드 주소 `upload-ttl-seconds`(300초). 업로드 주소는 Content-Type · Content-Length 까지 서명하므로 다른 종류 · 크기로는 S3 가 403.
+- 저장할 때(`ImageGuard`): 이미지 주소가 우리 공개 주소로 시작하고 키 모양이 맞는지 → S3 `HeadObject` 로 실제 파일이 있는지. 아니면 400 `IMAGE_URL_NOT_ALLOWED` · `IMAGE_NOT_UPLOADED`. 관리자 API(상품 · 아티스트 · 앨범 · 공연 등록/수정)와 크롤러 후보 승인 모두.
+- KOPIS 가져오기(`importFrom`): `app.image.import-hosts`(www.kopis.or.kr · kopis.or.kr)만 · http/https · 리다이렉트 안 따라감 · 크기 상한 · **앞 바이트로 jpg/png/gif/webp 확인**(응답 Content-Type 을 믿지 않음).
+- 설정: `IMAGE_BUCKET`(비우면 `DisabledImageStore` → 503 `IMAGE_STORE_DISABLED` · 주소 확인도 거절) · `IMAGE_PUBLIC_BASE_URL` · `IMAGE_S3_ENDPOINT`(로컬 · 테스트용 · path-style) · 시크릿 `image.access-key` · `image.secret-key` (configtree). AWS SDK v2 2.57.1 (`s3` · JDK `url-connection-client` — Spring Boot 3.3 의 httpclient5 와 맞지 않아 apache5 · netty 는 뺌).
+- 인프라(남음 · `docs/v2_후속_작업.md` 2-1 · 2-2): 버킷 · CloudFront `img.indig.co.kr` · CORS(`https://admin.indig.co.kr` 에서 PUT) · IAM(버킷 6경로 Put · Get).
+- 테스트: `S3ImageStoreTest`(LocalStack 3.8.1 S3 · 서명 검사 켬 — 업로드 주소로 PUT · 다른 Content-Type 403 · HeadObject · 남의 주소 · 경로 조작 · 크기 · 형식 · KOPIS 가져오기 · 거짓 Content-Type · 리다이렉트) · `ImageAndNoticeTest` · `CrawlIntakeTest`(가짜 저장소). MinIO 공식 이미지는 받을 수 없어 LocalStack 을 씀.
 
 ## 7. 오류 코드
 
@@ -325,10 +361,14 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | 503 | `OTP_MAIL_FAILED` | 인증 코드 메일을 못 보냄 (SMTP) — 잠시 뒤 1차부터 다시 |
 | 403 | `CSRF_INVALID` | `X-CSRF-Token` 없음 · 틀림 |
 | 404 | `NOT_FOUND` | 없는 경로 **또는 권한 밖** (구분 불가) |
-| 404 | `ACCOUNT_NOT_FOUND` · `STAGE_JOB_NOT_FOUND` · `STAGE_IMAGE_NOT_FOUND` · `CRAWL_CONCERT_NOT_FOUND` | |
+| 404 | `ACCOUNT_NOT_FOUND` · `STAGE_JOB_NOT_FOUND` · `STAGE_IMAGE_NOT_FOUND` · `CRAWL_CONCERT_NOT_FOUND` · `CRAWL_CATALOG_NOT_FOUND` | |
 | 405 | `METHOD_NOT_ALLOWED` | |
-| 409 | `LOGIN_ID_TAKEN` · `CANNOT_CHANGE_SELF` · `STAGE_JOB_NOT_REVIEWABLE` · `CRAWL_CONCERT_REVIEWED` · `CONFLICT` | |
+| 409 | `LOGIN_ID_TAKEN` · `CANNOT_CHANGE_SELF` · `STAGE_JOB_NOT_REVIEWABLE` · `CRAWL_CONCERT_REVIEWED` · `CRAWL_CATALOG_REVIEWED` · `CRAWL_ARTIST_NOT_APPROVED` · `CONFLICT` | |
 | 413 | `PAYLOAD_TOO_LARGE` | 업로드 10MB 초과 |
+| 400 | `IMAGE_TYPE_NOT_ALLOWED` · `IMAGE_TOO_LARGE` · `IMAGE_URL_NOT_ALLOWED` · `IMAGE_NOT_UPLOADED` | ✏️ 11/18 이미지 — 형식 · 5MB · 우리 주소 아님 · 버킷에 파일 없음 |
+| 502 | `IMAGE_IMPORT_FAILED` | ✏️ 11/18 KOPIS 포스터 · 이미지를 받지 못함 |
+| 503 | `IMAGE_STORE_DISABLED` | ✏️ 11/18 이 환경에 이미지 버킷이 없음 |
+| 422 | `CRAWL_CATALOG_FAILED` · `CRAWL_PRICE_REQUIRED` | 수집 후보 승인 — Catalog 거절 · 옵션 판매가 0 이하 |
 | 500 | `INTERNAL_ERROR` | |
 | 502 | `UPSTREAM_ERROR` | 대상 서비스의 401 · 403 · 5xx |
 | 503 | `UPSTREAM_UNAVAILABLE` | 대상 서비스에 닿지 못함 |
@@ -422,8 +462,8 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 | 대상 | 할 일 |
 |---|---|
-| ☐ **수집기** | 사용자가 직접 만듭니다 (11/17 · Python · AI + 크롤링 + 전처리). 정해진 것: 이미지는 **수집기가 S3 에 올리고 URL 을 넘김** · 공연은 Studio 후보 → 관리자 등록 · 아티스트 · 앨범 · 상품은 Studio 를 거쳐 Catalog 관리자 적재 경로로 (6.9). Gateway `/ingest` 는 쓰지 않습니다. 보내는 모양은 `docs/v2_크롤러_전송_계약.md` |
-| ☑ **수집기 ↔ Studio** | ✏️ 11/17 만들었습니다 (6.9) — 받는 API `/internal/crawl/**` · 토큰 `iss=crawler` · 후보 테이블 `crawl_concert` · 관리자 API `/api/studio/crawl/concerts`. 남은 것: 관리자 화면의 "수집 대기" 목록 · KT 에 `crawler.shared-secret` 파일 (`manifests-kt` README "크롤러") |
+| ☐ **수집기** | 사용자가 직접 만듭니다 (11/17 · Python · AI + 크롤링 + 전처리). 정해진 것: 이미지는 **수집기가 S3 에 올리고 URL 을 넘김** · 공연은 Studio 후보 → 관리자 등록 · 아티스트 · 앨범 · 상품도 Studio 후보 → 상품 관리자 승인 → Catalog 관리자 적재 (6.9 · 11/17 오후 변경). Gateway `/ingest` 는 쓰지 않습니다. 보내는 모양은 `docs/v2_크롤러_전송_계약.md` |
+| ☑ **수집기 ↔ Studio** | ✏️ 11/17 만들었습니다 (6.9) — 받는 API `/internal/crawl/**` · 토큰 `iss=crawler` · 후보 테이블 `crawl_concert` · `crawl_catalog` · 관리자 API `/api/studio/crawl/concerts` · `/api/studio/crawl/catalog`. 남은 것: 관리자 화면의 "수집 대기" 목록 · KT 에 `crawler.shared-secret` 파일 (`manifests-kt` README "크롤러") |
 | ☐ **인프라 (S3)** | 크롤링 이미지용 버킷 · 공개 방식(CloudFront 등) · 수집기의 쓰기 자격 증명. 지금 Terraform 의 S3 4개(`stage-images` · `crawl-raw` · `audit` · `server-logs`)에는 공개 이미지용 버킷이 없습니다. `stage-images` 버킷과 `studio-presign` 유저는 무대 사진을 MySQL 에 두기로 해서 쓰이지 않습니다 |
 | ☐ **GPU 서버** | `POST /v1/stage/verify` (5.3) |
 | ☐ **concert** | 공개 조회(`/api/concerts/**`)를 Studio 가 Gateway 없이 직접 부릅니다. `X-Admin-Id` 헤더를 기록에 쓸지 |
@@ -432,13 +472,13 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 
 ## 10. 테스트
 
-`./gradlew test` — 25건 통과 · 건너뜀 0 (2026-11-13 · ✏️ 11/16 Redis 로 옮긴 뒤 다시 통과 · ✏️ 11/17 `CrawlIntakeTest` 4건 추가). 실제 MySQL 8.4 · Redis 7.4(비밀번호 있음)를 Testcontainers 로 띄우므로 Docker 가 필요합니다. AWS 서비스와 GPU 서버는 테스트 안의 가짜 HTTP 서버입니다.
+`./gradlew test` — 28건 통과 · 건너뜀 0 (2026-11-13 · ✏️ 11/16 Redis 로 옮긴 뒤 다시 통과 · ✏️ 11/17 `CrawlIntakeTest` 7건). 실제 MySQL 8.4 · Redis 7.4(비밀번호 있음)를 Testcontainers 로 띄우므로 Docker 가 필요합니다. AWS 서비스와 GPU 서버는 테스트 안의 가짜 HTTP 서버입니다.
 
 | 테스트 | 건수 | 확인하는 것 |
 |---|---|---|
 | `AuthFlowTest` | 7 | 비밀번호 → 메일 인증 코드 → 대시보드(응답에 코드 없음 · 쓴 코드 재사용 거부) · 공용 계정은 모든 주소에 같은 코드(`bootstrap.admins` 로 심은 계정) · 5분 만료와 코드 5회 실패 · 메일 실패 시 503 이고 대기 없음 · 5회 실패 잠금 · 30분 무응답 / 8시간 만료 · 내 비밀번호 변경 |
 | `RbacTest` | 8 | 역할별 탭과 닿는 API(검표 포함 6개 역할) · 권한 밖은 없는 경로와 같은 404 + `DENIED` 기록 · 내부 토큰 `iss` / `aud` · 대상 오류 전달(401 로는 안 나감) · CSRF(막힌 요청도 기록) · 계정 관리와 즉시 반영 · 모든 핸들러의 권한 선언 · 검표 요청의 `checkerId` = 세션의 관리자 id |
-| `CrawlIntakeTest` | 4 | 크롤러 토큰만 통과(키 없음 · 서비스 공유 키 · 다른 `iss` / `aud` · 만료 → 401, 크롤러 토큰으로 관리자 API 401) · 공연 후보 CREATED → 같은 해시 UNCHANGED → UPDATED → 공연 관리자만 목록(다른 역할 404) → 등록 때 `source` · `externalId` 를 후보 값으로 덮어 Concert 로 · 처리 뒤 REVIEWED · 두 번 처리 409 · 등록 안 함 · Catalog 로 본문 그대로 · Studio 토큰 · `X-Admin-Id` 없음 · Catalog 400 그대로 |
+| `CrawlIntakeTest` | 7 | 크롤러 토큰만 통과(키 없음 · 서비스 공유 키 · 다른 `iss` / `aud` · 만료 → 401, 크롤러 토큰으로 관리자 API 401) · 공연 후보 CREATED → 같은 해시 UNCHANGED → UPDATED → 공연 관리자만 목록(다른 역할 404) → 등록 때 `source` · `externalId` 를 후보 값으로 덮어 Concert 로 · 처리 뒤 REVIEWED · 두 번 처리 409 · 등록 안 함 · 아티스트 · 앨범은 받기만 하고 Catalog 호출 없음 → 상품 관리자만 목록 → 앨범 먼저 승인 409 → 아티스트 승인(본문 그대로 · Studio 토큰 · `X-Admin-Id`) → 앨범 승인 때 `artist_ref` → `artist_id` · 승인된 것의 변경은 다시 PENDING · Catalog FAILED 는 422 + `lastError` · 고친 값으로 승인 · 적재 안 함 → REVIEWED · 여러 건 승인은 아티스트부터 · 열쇠 없으면 400 · diff 는 그대로 |
 | `StageJobFlowTest` | 3 | GPU 검증 → 확인 → Concert 수신(확인 전에는 0건) · 값 수정 후 전송과 Concert 거절 뒤 재시도 · 잘못된 업로드 거절과 GPU 실패 표시 |
 | `StudioSchemaTest` | 3 | 마이그레이션이 V1(구조) · V2(값) 두 개뿐 · CHECK 값 = Java enum · DB 에 해시와 암호문만 있음 · ✏️ Redis 키는 `studio:auth:*` + 64자 해시이고 모두 만료가 걸림 · 세션 테이블이 MySQL 에 없음 · 2단계 대기에는 인증 코드 해시만 |
 
@@ -500,6 +540,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | 2026-11-17 | 로그인 2차를 OTP 앱(TOTP · QR)에서 **메일 인증 코드**로 (결정: SMTP · Gmail · 보내는 주소 `noreply@indig.co.kr`). `Totp` · `SecretCipher` · `totp.encryption-key` · `otp-reset` · 첫 마스터 부트스트랩을 없애고, `otp_emails` 컬럼(V1 수정 → 스키마 비우고 다시) · `OtpMailer` · `AdminSeeder`(`bootstrap.admins`) 를 넣음. 운영 계정은 역할별 공용 5개. 테스트 21건 통과 (`TotpTest` 3건 삭제 · `AuthFlowTest` 3건 추가) · 로컬 Mailpit 과 실제 Gmail SMTP 로 발송 확인 |
 | 2026-11-17 | 운영 배포 (main · KT): `studio` 스키마를 비우고 V1 · V2 다시 적용 → 공용 계정 5개 생성 → `admin.indig.co.kr` 에서 비밀번호 → 메일 코드 → 세션 · `/me` · 계정 목록 · 로그아웃(CSRF)까지 실제 확인 |
 | 2026-11-17 | 크롤러 받는 쪽 (결정 A1 · B1 · C1): `/internal/crawl/concerts` → 후보 `crawl_concert` → 공연 관리자 등록 · 등록 안 함 (`/api/studio/crawl/concerts`), `/internal/crawl/catalog/*` → Catalog `/internal/admin/catalog/ingest/*` 로 바로. 크롤러 토큰 `iss=crawler` · 키 `crawler.shared-secret` (6.9). V1 에 테이블 1개 · V2 에 CHECK 1개 → 🔴 KT 운영 반영 때 studio 스키마 비우기. 테스트 25건 |
+| 2026-11-17 | 결정 변경(사용자): 아티스트 · 앨범 · 상품도 Catalog 로 바로 보내지 않고 후보 `crawl_catalog` → 상품 관리자 승인(`/api/studio/crawl/catalog`). 앨범은 `artist_ref` → 승인된 아티스트 `catalog_id`. 승인된 것의 변경은 다시 대기. V1 에 테이블 1개 · V2 에 CHECK 2개 (PR #11 과 함께 main 에 올리면 스키마 비우기는 한 번). 테스트 28건 |
 
 문서를 쓰다가 찾아 고친 것: CSRF 로 막힌 요청이 작업 기록에 남지 않던 문제 (인터셉터가 요청을 막으면 완료 콜백이 불리지 않음 → 막는 자리에서 직접 기록 · 테스트 추가).
 

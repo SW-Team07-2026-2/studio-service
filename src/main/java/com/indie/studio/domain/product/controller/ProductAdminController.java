@@ -1,6 +1,7 @@
 package com.indie.studio.domain.product.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.indie.studio.domain.image.ImageGuard;
 import com.indie.studio.global.auth.AdminPrincipal;
 import com.indie.studio.global.auth.Permission;
 import com.indie.studio.global.auth.RequirePermission;
@@ -28,9 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductAdminController {
 
     private final ServiceClient serviceClient;
+    private final ImageGuard images;
 
-    public ProductAdminController(ServiceClient serviceClient) {
+    public ProductAdminController(ServiceClient serviceClient, ImageGuard images) {
         this.serviceClient = serviceClient;
+        this.images = images;
     }
 
     /** ?artistId=&category=&page=&size= */
@@ -62,6 +65,7 @@ public class ProductAdminController {
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> create(@RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        images.check(body, "thumbnailUrl");
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.POST, "/internal/admin/catalog/products", body, admin));
     }
 
@@ -70,7 +74,34 @@ public class ProductAdminController {
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> update(@PathVariable @Positive long id, @RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        images.check(body, "thumbnailUrl");
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/products/" + id, body, admin));
+    }
+
+    /** 아티스트 이미지 바꾸기 — { profileUrl } (POST /api/studio/products/images 로 올린 주소) · 11/18 */
+    @PatchMapping("/api/studio/products/artists/{artistId}")
+    @RequirePermission(Permission.PRODUCT)
+    public ApiResponse<JsonNode> updateArtist(@PathVariable @Positive long artistId, @RequestBody JsonNode body,
+                                              @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        images.check(body, "profileUrl");
+        return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/artists/" + artistId, body, admin));
+    }
+
+    /** 앨범 상세 (트랙 · 태그 · 피지컬 앨범) — 이미지 · 트랙 태그를 고칠 때 */
+    @GetMapping("/api/studio/products/albums/{albumId}")
+    @RequirePermission(Permission.PRODUCT)
+    public ApiResponse<JsonNode> album(@PathVariable @Positive long albumId,
+                                       @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/albums/" + albumId, null, admin));
+    }
+
+    /** 앨범 이미지 · 트랙 태그 — { thumbnailUrl, tracks: [{ trackNo, genres, tempo, moods, emotions, styles }] } 보낸 값만 · 11/18 */
+    @PatchMapping("/api/studio/products/albums/{albumId}")
+    @RequirePermission(Permission.PRODUCT)
+    public ApiResponse<JsonNode> updateAlbum(@PathVariable @Positive long albumId, @RequestBody JsonNode body,
+                                             @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        images.check(body, "thumbnailUrl");
+        return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/albums/" + albumId, body, admin));
     }
 
     /** 옵션 추가 · 수정 — { options: [{ id?, name, vinylColor, size, price }] }. 새 옵션에는 재고 행이 함께 생깁니다 */

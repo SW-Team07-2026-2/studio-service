@@ -15,13 +15,14 @@ import java.time.Instant;
 
 /**
  * 크롤러가 넘긴 공연 후보 한 건. PENDING(확인 대기) → APPROVED(Concert 에 등록) · REJECTED(등록 안 함).
+ * 등록한 공연이 출처(KOPIS)에서 바뀌어 다시 오면 CHANGED (11/18) — 관리자가 공연 수정 · 변경 공지로 반영한 뒤 확인하면 APPROVED 로.
  * 값을 바꾸면 V2__studio_values.sql 의 ck_crawl_concert_status 도 함께 고칩니다.
  */
 @Entity
 @Table(name = "crawl_concert")
 public class CrawlConcertEntity {
 
-    public enum Status { PENDING, APPROVED, REJECTED }
+    public enum Status { PENDING, APPROVED, REJECTED, CHANGED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,6 +32,8 @@ public class CrawlConcertEntity {
     private String sourceHash;
     @Column(columnDefinition = "MEDIUMTEXT")
     private String payloadJson;
+    @Column(columnDefinition = "MEDIUMTEXT")
+    private String previousJson;
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     private Status status;
@@ -57,6 +60,23 @@ public class CrawlConcertEntity {
         this.receivedAt = now;
     }
 
+    /** 등록한 공연이 출처에서 바뀜 — 비교 기준(등록 · 마지막 확인 때 값)은 처음 바뀔 때 한 번만 남깁니다 */
+    public void changed(String sourceHash, String payloadJson, Instant now) {
+        if (this.status != Status.CHANGED) this.previousJson = this.payloadJson;
+        this.status = Status.CHANGED;
+        this.sourceHash = sourceHash;
+        this.payloadJson = payloadJson;
+        this.receivedAt = now;
+    }
+
+    /** 바뀐 내용을 반영했음 (공연 수정 · 공지는 따로) — 지금 값이 다음 비교 기준 */
+    public void changeChecked(long adminId, Instant now) {
+        this.status = Status.APPROVED;
+        this.previousJson = null;
+        this.reviewedBy = adminId;
+        this.reviewedAt = now;
+    }
+
     public void approved(long concertId, long adminId, Instant now) {
         this.status = Status.APPROVED;
         this.concertId = concertId;
@@ -75,6 +95,7 @@ public class CrawlConcertEntity {
     public String getExternalId() { return externalId; }
     public String getSourceHash() { return sourceHash; }
     public String getPayloadJson() { return payloadJson; }
+    public String getPreviousJson() { return previousJson; }
     public Status getStatus() { return status; }
     public Instant getReceivedAt() { return receivedAt; }
     public Long getReviewedBy() { return reviewedBy; }

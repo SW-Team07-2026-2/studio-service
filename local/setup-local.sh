@@ -16,6 +16,11 @@ else
   put internal.shared-secret "$(openssl rand -hex 32)"
 fi
 put gpu.token "$(openssl rand -hex 16)"
+# 크롤러 → Studio 토큰 키 (/internal/crawl/**) — internal.shared-secret 과 다른 값. 로컬 크롤러는 이 파일을 CRAWLER_SECRETS_DIR 에 복사해 씁니다
+put crawler.shared-secret "$(openssl rand -hex 32)"
+# 이미지 버킷(LocalStack) 키 — LocalStack 은 값을 따지지 않음
+put image.access-key test
+put image.secret-key test
 # 관리자 계정 — 줄마다 아이디,이름,역할,메일(;),bcrypt (AdminSeeder · DB 에 없는 아이디만 만듭니다). 비밀번호 원문은 로컬이라 주석 줄에 남깁니다
 if [ ! -f local-secrets/bootstrap.admins ]; then
   PW="$(openssl rand -hex 9)"

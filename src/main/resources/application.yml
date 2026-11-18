@@ -93,3 +93,13 @@ app:
     max-image-bytes: 10485760
   cors:
     allowed-origins: ${STUDIO_ALLOWED_ORIGINS:}          # 관리자 화면 출처 (쉼표 구분). 같은 출처면 비워 둡니다
+  # 공개 이미지 (아티스트 · 앨범 · 굿즈 · 피지컬 · 공연) — S3 버킷 + CloudFront img.indig.co.kr (11/18 결정). DB 에는 이 주소만 저장합니다
+  # 키는 configtree image.access-key · image.secret-key (없으면 AWS 기본 자격 증명) — 이미지 경로 쓰기 · 읽기만 되는 IAM 유저
+  image:
+    bucket: ${IMAGE_BUCKET:}                  # 비우면 업로드 · 이미지 주소 저장을 막습니다 (이미지 칸을 비운 승인 · 등록은 됨)
+    region: ${IMAGE_REGION:ap-northeast-2}
+    public-base-url: ${IMAGE_PUBLIC_BASE_URL:https://img.indig.co.kr}
+    endpoint: ${IMAGE_S3_ENDPOINT:}           # 로컬 MinIO 만 (운영은 비움)
+    max-bytes: 5242880                        # 5MB
+    upload-ttl-seconds: 300                   # 업로드 주소 유효 시간
+    import-hosts: www.kopis.or.kr,kopis.or.kr # Studio 가 받아 버킷으로 옮겨도 되는 곳 — KOPIS 포스터 (리다이렉트는 따라가지 않음)
