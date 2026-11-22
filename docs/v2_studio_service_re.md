@@ -274,7 +274,7 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | `POST /api/studio/products/options/{optionId}/stock` | `STOCK` | Catalog `POST /internal/admin/catalog/options/{optionId}/stock` |
 | ✏️ 11/18 `PUT /api/studio/products/options/{optionId}/stock` `{ qty, reason }` | `STOCK` | Catalog `PUT /internal/admin/catalog/options/{optionId}/stock` — 재고를 qty 개로 설정 |
 | `GET /api/studio/products/options/artists` · `/{artistId}` | `PRODUCT` | Catalog `GET /api/catalog/artists` · `/{id}` |
-| ✏️ 11/18 `PATCH /api/studio/products/artists/{artistId}` `{ profileUrl }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/artists/{id}` — 아티스트 사진 |
+| ✏️ 11/18 `PATCH /api/studio/products/artists/{artistId}` `{ profileUrl?, gender?, composition? }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/artists/{id}` — 아티스트 사진 · ✏️ 11/22 성별 · 구성 (보낸 값만 · 본문 그대로 넘김) |
 | ✏️ 11/18 `GET /api/studio/products/albums/{albumId}` | `PRODUCT` | Catalog `GET /api/catalog/albums/{id}` |
 | ✏️ 11/18 `PATCH /api/studio/products/albums/{albumId}` `{ thumbnailUrl?, tracks?: [{ trackNo, genres?, tempo?, moods?, emotions?, styles? }] }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/albums/{id}` — 표지 · 트랙 태그 (null 은 그대로 · `[]` 은 비움) |
 | ✏️ 11/18 `POST /api/studio/products/images` | `PRODUCT` | (Studio 안) 이미지 업로드 주소 — 6.10 |
