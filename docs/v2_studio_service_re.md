@@ -361,7 +361,7 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 - 저장할 때(`ImageGuard`): 이미지 주소가 우리 공개 주소로 시작하고 키 모양이 맞는지 → S3 `HeadObject` 로 실제 파일이 있는지. 아니면 400 `IMAGE_URL_NOT_ALLOWED` · `IMAGE_NOT_UPLOADED`. 관리자 API(상품 · 아티스트 · 앨범 · 공연 등록/수정)와 크롤러 후보 승인 모두.
 - KOPIS 가져오기(`importFrom`): `app.image.import-hosts`(www.kopis.or.kr · kopis.or.kr)만 · http/https · 리다이렉트 안 따라감 · 크기 상한 · **앞 바이트로 jpg/png/gif/webp 확인**(응답 Content-Type 을 믿지 않음).
 - 설정: `IMAGE_BUCKET`(비우면 `DisabledImageStore` → 503 `IMAGE_STORE_DISABLED` · 주소 확인도 거절) · `IMAGE_PUBLIC_BASE_URL` · `IMAGE_S3_ENDPOINT`(로컬 · 테스트용 · path-style) · 시크릿 `image.access-key` · `image.secret-key` (configtree). AWS SDK v2 2.57.1 (`s3` · JDK `url-connection-client` — Spring Boot 3.3 의 httpclient5 와 맞지 않아 apache5 · netty 는 뺌).
-- 인프라(남음 · `docs/v2_후속_작업.md` 2-1 · 2-2): 버킷 · CloudFront `img.indig.co.kr` · CORS(`https://admin.indig.co.kr` 에서 PUT) · IAM(버킷 6경로 Put · Get).
+- ~~인프라(남음 · `docs/v2_후속_작업.md` 2-1 · 2-2): 버킷 · CloudFront `img.indig.co.kr` · CORS(`https://admin.indig.co.kr` 에서 PUT) · IAM(버킷 6경로 Put · Get).~~ ✏️ 11/18 운영 연결 끝 (terraform `modules/images` · KT `IMAGE_BUCKET`). CORS 는 관리자 화면 주소 `https://indig.co.kr` · `https://www.indig.co.kr` 에서 PUT.
 - 테스트: `S3ImageStoreTest`(LocalStack 3.8.1 S3 · 서명 검사 켬 — 업로드 주소로 PUT · 다른 Content-Type 403 · HeadObject · 남의 주소 · 경로 조작 · 크기 · 형식 · KOPIS 가져오기 · 거짓 Content-Type · 리다이렉트) · `ImageAndNoticeTest` · `CrawlIntakeTest`(가짜 저장소). MinIO 공식 이미지는 받을 수 없어 LocalStack 을 씀.
 
 ## 7. 오류 코드
