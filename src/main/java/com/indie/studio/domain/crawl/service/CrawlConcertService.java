@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.indie.studio.domain.crawl.dto.CrawlDtos.CandidateView;
 import com.indie.studio.domain.crawl.dto.CrawlDtos.ConcertItem;
 import com.indie.studio.domain.crawl.dto.CrawlDtos.ItemResult;
+import com.indie.studio.domain.crawl.dto.CrawlDtos.ReviewedKey;
 import com.indie.studio.domain.crawl.entity.CrawlConcertEntity;
 import com.indie.studio.domain.crawl.exception.CrawlErrorCode;
 import com.indie.studio.domain.crawl.repository.CrawlConcertRepository;
@@ -77,6 +78,12 @@ public class CrawlConcertService {
     @Transactional(readOnly = true)
     public List<CandidateView> list(CrawlConcertEntity.Status status, Long beforeId, int size) {
         return candidates.page(status, beforeId, PageRequest.of(0, size)).stream().map(this::view).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReviewedKey> reviewed() {
+        return candidates.reviewed(CrawlConcertEntity.Status.PENDING).stream()
+                .map(r -> new ReviewedKey(r.getSource(), r.getExternalId(), r.getStatus().name())).toList();
     }
 
     /** Concert 호출은 트랜잭션 밖 — 결과를 받은 뒤 상태만 바꿉니다 */
