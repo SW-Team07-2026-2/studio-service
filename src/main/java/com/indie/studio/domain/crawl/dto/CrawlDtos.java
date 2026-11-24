@@ -39,6 +39,14 @@ public final class CrawlDtos {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record BatchResult(List<ItemResult> items) {}
 
+    /** GET /internal/crawl/reviewed — 관리자가 처리한 후보 (대기 중인 것은 뺌). 크롤러가 실행 처음에 한 번 불러 거절한 것은 다시 찾지 않음 (11/24) */
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record Reviewed(List<ReviewedKey> concerts, List<ReviewedKey> artists, List<ReviewedKey> albums) {}
+
+    /** status — REJECTED · APPROVED (공연은 CHANGED 도: 등록한 뒤 출처에서 바뀜) */
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record ReviewedKey(String source, String externalId, String status) {}
+
     /** 관리자 화면 (camelCase) */
     /** previous — CHANGED 일 때 등록(또는 마지막 확인) 때의 값 · 그 밖에는 null */
     public record CandidateView(long id, String source, String externalId, String status, JsonNode concert, JsonNode previous,

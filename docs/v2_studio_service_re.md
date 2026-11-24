@@ -327,6 +327,7 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | `POST /internal/crawl/concerts` | 공연 후보 받기 — `{ items: [{ source, external_id, source_hash, concert: {...} }] }` 최대 100건 → 항목별 `CREATED` · `UPDATED` · `UNCHANGED`(같은 해시) · `REVIEWED`(등록 안 함으로 처리한 후보라 그대로) · ✏️ 11/18 `CHANGED`(등록한 공연이 바뀌어 옴 — 아래) |
 | `POST /internal/crawl/catalog/artists` · `/albums` | ✏️ 11/17 오후 변경: **바로 넘기지 않고** 후보(`crawl_catalog`)로 받음 — `{ items: [...] }` 최대 500건 · 항목은 Catalog 수집 계약(catalog 문서 7.3 · snake_case) 그대로, 앨범만 `artist_id` 대신 `artist_ref: { source, external_id }`. Studio 는 열쇠(`source` · `external_id` · 앨범의 `artist_ref`)만 검사 → 항목별 `CREATED` · `UPDATED` · `UNCHANGED` · `REVIEWED`(적재 안 함으로 처리된 것) |
 | `POST /internal/crawl/catalog/diff` | 조회라 그대로 Catalog `POST /internal/admin/catalog/ingest/diff` 로 (Studio 토큰 · `X-Admin-Id` 없음) |
+| `GET /internal/crawl/reviewed` | ✏️ 11/24 관리자가 처리한 후보의 키 · 상태만 — `{ concerts, artists, albums: [{ source, external_id, status }] }` (대기 중인 것은 뺌 · 본문 없음). 크롤러가 실행 처음에 불러 거절한 공연 · 아티스트는 다시 찾지 않음 (Gemini · 검색 크레딧 아끼기) |
 
 | 경로 (관리자 화면) | 권한 | 하는 일 |
 |---|---|---|
@@ -557,6 +558,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | 2026-11-17 | 크롤러 받는 쪽 (결정 A1 · B1 · C1): `/internal/crawl/concerts` → 후보 `crawl_concert` → 공연 관리자 등록 · 등록 안 함 (`/api/studio/crawl/concerts`), `/internal/crawl/catalog/*` → Catalog `/internal/admin/catalog/ingest/*` 로 바로. 크롤러 토큰 `iss=crawler` · 키 `crawler.shared-secret` (6.9). V1 에 테이블 1개 · V2 에 CHECK 1개 → 🔴 KT 운영 반영 때 studio 스키마 비우기. 테스트 25건 |
 | 2026-11-17 | 결정 변경(사용자): 아티스트 · 앨범 · 상품도 Catalog 로 바로 보내지 않고 후보 `crawl_catalog` → 상품 관리자 승인(`/api/studio/crawl/catalog`). 앨범은 `artist_ref` → 승인된 아티스트 `catalog_id`. 승인된 것의 변경은 다시 대기. V1 에 테이블 1개 · V2 에 CHECK 2개 (PR #11 과 함께 main 에 올리면 스키마 비우기는 한 번). 테스트 28건 |
 | 2026-11-18 | GPU 없이 구역 값을 바로 저장하는 `PUT /api/studio/venues/{venueId}/sections` 추가 (5.4 · GPU 검증 서버를 만들지 않을 수 있어서 · 검증 흐름은 그대로 둠). 테스트 1건 |
+| 2026-11-24 | 크롤러용 `GET /internal/crawl/reviewed` 추가 — 관리자가 처리한 후보의 키 · 상태만 (거절한 공연 · 아티스트를 크롤러가 다시 찾지 않게 · 스키마 변경 없음). 테스트 1건 |
 
 문서를 쓰다가 찾아 고친 것: CSRF 로 막힌 요청이 작업 기록에 남지 않던 문제 (인터셉터가 요청을 막으면 완료 콜백이 불리지 않음 → 막는 자리에서 직접 기록 · 테스트 추가).
 
