@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.indie.studio.domain.crawl.dto.CrawlDtos.ApproveResult;
 import com.indie.studio.domain.crawl.dto.CrawlDtos.CatalogCandidateView;
 import com.indie.studio.domain.crawl.dto.CrawlDtos.ItemResult;
+import com.indie.studio.domain.crawl.dto.CrawlDtos.ReviewedKey;
 import com.indie.studio.domain.crawl.entity.CrawlCatalogEntity;
 import com.indie.studio.domain.crawl.entity.CrawlCatalogEntity.Status;
 import com.indie.studio.domain.crawl.entity.CrawlCatalogEntity.Type;
@@ -91,6 +92,12 @@ public class CrawlCatalogService {
     @Transactional(readOnly = true)
     public List<CatalogCandidateView> list(Status status, Type type, Long beforeId, int size) {
         return candidates.page(status, type, beforeId, PageRequest.of(0, size)).stream().map(this::view).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReviewedKey> reviewed(Type type) {
+        return candidates.reviewed(type, Status.PENDING).stream()
+                .map(r -> new ReviewedKey(r.getSource(), r.getExternalId(), r.getStatus().name())).toList();
     }
 
     /** edited 가 있으면 관리자가 고친 항목으로 (받은 항목과 같은 모양) — 저장해 두고 그 값으로 보냅니다 */

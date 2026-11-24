@@ -362,6 +362,32 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(call.headers()).doesNotContainKey("x-admin-id");
     }
 
+    /** 11/24 — 크롤러는 관리자가 처리한 후보의 키 · 상태만 받아 거절한 것을 다시 찾지 않음 (대기 중인 것은 안 옴) */
+    @Test
+    void reviewedListsOnlyWhatAdminsHandled() throws Exception {
+        String c1 = "rv-" + UUID.randomUUID(), c2 = "rv-" + UUID.randomUUID(), a1 = "rv-" + UUID.randomUUID(), a2 = "rv-" + UUID.randomUUID();
+        long rejectedConcert = intake("{\"source\":\"kopis\",\"external_id\":\"" + c1 + "\",\"concert\":{\"title\":\"거절할 공연\"}}")
+                .at("/items/0/id").asLong();
+        intake("{\"source\":\"kopis\",\"external_id\":\"" + c2 + "\",\"concert\":{\"title\":\"대기 공연\"}}");
+        long rejectedArtist = intakeCatalog("artists", "{\"source\":\"crawler\",\"external_id\":\"" + a1 + "\",\"name\":\"거절할 팀\"}")
+                .at("/items/0/id").asLong();
+        intakeCatalog("artists", "{\"source\":\"crawler\",\"external_id\":\"" + a2 + "\",\"name\":\"대기 팀\"}");
+        mvc.perform(as(newAdmin("CONCERT"), post("/api/studio/crawl/concerts/" + rejectedConcert + "/reject"))).andExpect(status().isOk());
+        mvc.perform(as(newAdmin("GOODS"), post("/api/studio/crawl/catalog/" + rejectedArtist + "/reject"))).andExpect(status().isOk());
+
+        mvc.perform(get("/internal/crawl/reviewed")).andExpect(status().isUnauthorized());
+        JsonNode reviewed = result(mvc.perform(crawler(get("/internal/crawl/reviewed"), crawlerToken())).andExpect(status().isOk()).andReturn());
+        assertThat(keys(reviewed.get("concerts"))).containsEntry(c1, "kopis:REJECTED").doesNotContainKey(c2);
+        assertThat(keys(reviewed.get("artists"))).containsEntry(a1, "crawler:REJECTED").doesNotContainKey(a2);
+        assertThat(keys(reviewed.get("albums"))).doesNotContainKeys(c1, a1);
+    }
+
+    private static java.util.Map<String, String> keys(JsonNode list) {
+        java.util.Map<String, String> out = new java.util.HashMap<>();
+        for (JsonNode k : list) out.put(k.get("external_id").asText(), k.get("source").asText() + ":" + k.get("status").asText());
+        return out;
+    }
+
     private JsonNode intakeCatalog(String kind, String item) throws Exception {
         return result(mvc.perform(crawler(post("/internal/crawl/catalog/" + kind), crawlerToken()).content("{\"items\":[" + item + "]}"))
                 .andExpect(status().isOk()).andReturn());
