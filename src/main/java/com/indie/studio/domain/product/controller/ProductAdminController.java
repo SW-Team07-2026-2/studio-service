@@ -65,7 +65,7 @@ public class ProductAdminController {
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> create(@RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        images.check(body, "thumbnailUrl");
+        images.check(body, "thumbnailUrl", "detailImageUrls");   // 11/26 상세 이미지도 우리 버킷 주소만
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.POST, "/internal/admin/catalog/products", body, admin));
     }
 
@@ -74,7 +74,7 @@ public class ProductAdminController {
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> update(@PathVariable @Positive long id, @RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        images.check(body, "thumbnailUrl");
+        images.check(body, "thumbnailUrl", "detailImageUrls");   // 11/26 상세 이미지도 우리 버킷 주소만
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/products/" + id, body, admin));
     }
 
