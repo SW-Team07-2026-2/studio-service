@@ -78,7 +78,7 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/products/" + id, body, admin));
     }
 
-    /** 아티스트 이미지 · 성별 · 구성 바꾸기 — { profileUrl?, gender?, composition? } 보낸 값만 (이미지는 POST /api/studio/products/images 로 올린 주소) · 11/18 · 11/22 성별 · 구성 */
+    /** 아티스트 이미지 · 성별 · 구성 · 소개 글 바꾸기 — { profileUrl?, gender?, composition?, bio? } 보낸 값만 (이미지는 POST /api/studio/products/images 로 올린 주소) · 11/18 · 11/22 성별 · 구성 · 11/25 소개 글 ("" = 지움) */
     @PatchMapping("/api/studio/products/artists/{artistId}")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> updateArtist(@PathVariable @Positive long artistId, @RequestBody JsonNode body,
@@ -95,7 +95,7 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/albums/" + albumId, null, admin));
     }
 
-    /** 앨범 이미지 · 트랙 태그 — { thumbnailUrl, tracks: [{ trackNo, genres, tempo, moods, emotions, styles }] } 보낸 값만 · 11/18 */
+    /** 앨범 이미지 · 소개 글 · 트랙 태그 — { thumbnailUrl, description, tracks: [{ trackNo, genres, tempo, moods, emotions, styles }] } 보낸 값만 · 11/18 · 11/25 소개 글 ("" = 지움) */
     @PatchMapping("/api/studio/products/albums/{albumId}")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> updateAlbum(@PathVariable @Positive long albumId, @RequestBody JsonNode body,

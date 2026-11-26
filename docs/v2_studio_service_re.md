@@ -274,9 +274,9 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | `POST /api/studio/products/options/{optionId}/stock` | `STOCK` | Catalog `POST /internal/admin/catalog/options/{optionId}/stock` |
 | ✏️ 11/18 `PUT /api/studio/products/options/{optionId}/stock` `{ qty, reason }` | `STOCK` | Catalog `PUT /internal/admin/catalog/options/{optionId}/stock` — 재고를 qty 개로 설정 |
 | `GET /api/studio/products/options/artists` · `/{artistId}` | `PRODUCT` | Catalog `GET /api/catalog/artists` · `/{id}` |
-| ✏️ 11/18 `PATCH /api/studio/products/artists/{artistId}` `{ profileUrl?, gender?, composition? }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/artists/{id}` — 아티스트 사진 · ✏️ 11/22 성별 · 구성 (보낸 값만 · 본문 그대로 넘김) |
+| ✏️ 11/18 `PATCH /api/studio/products/artists/{artistId}` `{ profileUrl?, gender?, composition?, bio? }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/artists/{id}` — 아티스트 사진 · ✏️ 11/22 성별 · 구성 · ✏️ 11/25 소개 글 `bio` (한글 1,000자 이하 · `""` = 지움 · catalog `e9a1742`) (보낸 값만 · 본문 그대로 넘김) |
 | ✏️ 11/18 `GET /api/studio/products/albums/{albumId}` | `PRODUCT` | Catalog `GET /api/catalog/albums/{id}` |
-| ✏️ 11/18 `PATCH /api/studio/products/albums/{albumId}` `{ thumbnailUrl?, tracks?: [{ trackNo, genres?, tempo?, moods?, emotions?, styles? }] }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/albums/{id}` — 표지 · 트랙 태그 (null 은 그대로 · `[]` 은 비움) |
+| ✏️ 11/18 `PATCH /api/studio/products/albums/{albumId}` `{ thumbnailUrl?, description?, tracks?: [{ trackNo, genres?, tempo?, moods?, emotions?, styles? }] }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/albums/{id}` — 표지 · 트랙 태그 (null 은 그대로 · `[]` 은 비움) · ✏️ 11/25 소개 글 `description` (`""` = 지움) |
 | ✏️ 11/18 `POST /api/studio/products/images` | `PRODUCT` | (Studio 안) 이미지 업로드 주소 — 6.10 |
 
 - ✏️ 11/18 상품 등록 · 수정의 `thumbnailUrl`, 아티스트 `profileUrl`, 앨범 `thumbnailUrl` 은 우리 버킷 주소만 받습니다 (6.10). 크롤러가 다시 보내도 관리자가 넣은 이미지 · 트랙 태그 · 판매가는 지워지지 않습니다 (Catalog 가 null 이면 유지).
@@ -559,6 +559,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 | 2026-11-17 | 결정 변경(사용자): 아티스트 · 앨범 · 상품도 Catalog 로 바로 보내지 않고 후보 `crawl_catalog` → 상품 관리자 승인(`/api/studio/crawl/catalog`). 앨범은 `artist_ref` → 승인된 아티스트 `catalog_id`. 승인된 것의 변경은 다시 대기. V1 에 테이블 1개 · V2 에 CHECK 2개 (PR #11 과 함께 main 에 올리면 스키마 비우기는 한 번). 테스트 28건 |
 | 2026-11-18 | GPU 없이 구역 값을 바로 저장하는 `PUT /api/studio/venues/{venueId}/sections` 추가 (5.4 · GPU 검증 서버를 만들지 않을 수 있어서 · 검증 흐름은 그대로 둠). 테스트 1건 |
 | 2026-11-24 | 크롤러용 `GET /internal/crawl/reviewed` 추가 — 관리자가 처리한 후보의 키 · 상태만 (거절한 공연 · 아티스트를 크롤러가 다시 찾지 않게 · 스키마 변경 없음). 테스트 1건 |
+| 2026-11-26 | 문서 · 주석만: 아티스트 `PATCH` 의 소개 글 `bio` · 앨범 `PATCH` 의 소개 글 `description` 을 6장 표에 적음 (11/25 catalog `e9a1742` 부터 Studio 가 본문을 그대로 넘겨 이미 동작 · 코드 변경 없음). 11/26 크롤러가 붙이는 확인 표시(아티스트 · 앨범은 `evidence` · 공연은 `reviewNotes` 의 `[크롤러] ` 줄 · 공연 `lineup`)도 받은 그대로 저장 · 목록에 보임 · `evidence` 는 승인 때 빼고 보냄 (크롤러 계약 문서) |
 
 문서를 쓰다가 찾아 고친 것: CSRF 로 막힌 요청이 작업 기록에 남지 않던 문제 (인터셉터가 요청을 막으면 완료 콜백이 불리지 않음 → 막는 자리에서 직접 기록 · 테스트 추가).
 
