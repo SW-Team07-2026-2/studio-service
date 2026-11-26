@@ -44,18 +44,18 @@ public class AccountController {
     }
 
     /** 이름 · 역할 · 상태(ACTIVE · DISABLED) · 인증 코드 받을 메일. 역할 · 상태가 바뀌면 그 계정은 바로 로그아웃됩니다 */
-    @PatchMapping("/api/studio/accounts/{id}")
+    @PatchMapping("/api/studio/accounts/{accountId}")
     @RequirePermission(Permission.ACCOUNT)
-    public ApiResponse<AccountView> update(@PathVariable @Positive long id, @Valid @RequestBody UpdateRequest request,
+    public ApiResponse<AccountView> update(@PathVariable @Positive long accountId, @Valid @RequestBody UpdateRequest request,
                                            @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(accountService.update(id, request, admin));
+        return ApiResponse.onSuccess(accountService.update(accountId, request, admin));
     }
 
-    @PostMapping("/api/studio/accounts/{id}/password-reset")
+    @PostMapping("/api/studio/accounts/{accountId}/password-reset")
     @RequirePermission(Permission.ACCOUNT)
-    public ApiResponse<Void> resetPassword(@PathVariable @Positive long id, @Valid @RequestBody PasswordResetRequest request,
+    public ApiResponse<Void> resetPassword(@PathVariable @Positive long accountId, @Valid @RequestBody PasswordResetRequest request,
                                            @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        accountService.resetPassword(id, request.password(), admin);
+        accountService.resetPassword(accountId, request.password(), admin);
         return ApiResponse.onSuccess(null);
     }
 }

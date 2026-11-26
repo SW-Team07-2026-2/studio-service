@@ -29,7 +29,7 @@ import java.util.List;
  * 크롤링 공연 후보 — 받기(크롤러) · 목록 · 등록 · 등록 안 함(공연 관리자).
  * 등록은 관리자가 보완한 공연 값(POST /api/studio/concerts 와 같은 본문)에 후보의 source · externalId 를 넣어 Concert 에 보냅니다.
  * Concert 가 (source, externalId) 를 유일하게 막아 같은 후보를 두 번 등록할 수 없습니다 (동시에 누르면 뒤쪽이 409).
- * 등록한 공연이 출처에서 바뀌어 다시 오면 CHANGED (11/18) — 관리자가 공연 수정 · 변경 공지(/api/studio/concerts/{id}/notices)로 반영하고 확인합니다.
+ * 등록한 공연이 출처에서 바뀌어 다시 오면 CHANGED (11/18) — 관리자가 공연 수정 · 변경 공지(/api/studio/concerts/{concertId}/notices)로 반영하고 확인합니다.
  */
 @Service
 public class CrawlConcertService {

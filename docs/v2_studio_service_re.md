@@ -219,38 +219,38 @@ PUT /api/studio/venues/{venueId}/sections      권한 STAGE_DRAW · X-CSRF-Token
 |---|---|
 | `GET /api/studio/accounts` | 계정 목록 (`otpEmails[]` · `lockedUntil` · `lastLoginAt` 포함) |
 | `POST /api/studio/accounts` | `{ loginId, name, role, otpEmails[], password }` — `loginId` 는 영문 소문자 · 숫자 · 점 4~32자 · `otpEmails` 는 1~5개 |
-| `PATCH /api/studio/accounts/{id}` | `{ name?, role?, status?, otpEmails? }` — 보낸 값만 변경 |
-| `POST /api/studio/accounts/{id}/password-reset` | `{ password }` |
+| `PATCH /api/studio/accounts/{accountId}` | `{ name?, role?, status?, otpEmails? }` — 보낸 값만 변경 |
+| `POST /api/studio/accounts/{accountId}/password-reset` | `{ password }` |
 | `GET /api/studio/audit-logs` | `?adminId=&beforeId=&size=` — 최신순 |
 
 ### 6.3 무대 (`STAGE`)
 
 | 메서드 · 경로 | 권한 | 보내는 곳 |
 |---|---|---|
-| `GET /api/studio/venues` · `/{venueId}` | `VENUE` | Concert `GET /api/concerts/venues` · `/{id}` |
+| `GET /api/studio/venues` · `/{venueId}` | `VENUE` | Concert `GET /api/concerts/venues` · `/{venueId}` |
 | `POST /api/studio/venues` | `VENUE` | Concert `POST /internal/admin/concerts/venues` |
-| `GET /api/studio/venues/{venueId}/layout` | `VENUE` | Concert `GET /internal/admin/concerts/venues/{id}/layout` |
+| `GET /api/studio/venues/{venueId}/layout` | `VENUE` | Concert `GET /internal/admin/concerts/venues/{venueId}/layout` |
 | `POST /api/studio/venues/{venueId}/stage-jobs` | `STAGE_DRAW` | (Studio) 검증 요청 |
 | `GET /api/studio/venues/{venueId}/stage-jobs` | `STAGE_DRAW` | (Studio) 최근 50건 — 값 · 사진 제외 |
 | `GET /api/studio/stage-jobs/{jobId}` | `STAGE_DRAW` | (Studio) `drawing` · `values` · `sent` · `resultImage` 포함 |
 | `GET /api/studio/stage-jobs/{jobId}/image` | `STAGE_DRAW` | (Studio) `?kind=RESULT`(기본) \| `ORIGINAL` |
-| `POST /api/studio/stage-jobs/{jobId}/confirm` | `STAGE_DRAW` | Concert `PUT /internal/admin/concerts/venues/{id}/sections` (구역마다) |
-| ✏️ 11/18 `PUT /api/studio/venues/{venueId}/sections` | `STAGE_DRAW` | GPU 검증 없이 Concert `PUT /internal/admin/concerts/venues/{id}/sections` (구역마다 · 5.4) |
+| `POST /api/studio/stage-jobs/{jobId}/confirm` | `STAGE_DRAW` | Concert `PUT /internal/admin/concerts/venues/{venueId}/sections` (구역마다) |
+| ✏️ 11/18 `PUT /api/studio/venues/{venueId}/sections` | `STAGE_DRAW` | GPU 검증 없이 Concert `PUT /internal/admin/concerts/venues/{venueId}/sections` (구역마다 · 5.4) |
 
 ### 6.4 공연 (`CONCERT`)
 
 | 메서드 · 경로 | 권한 | 보내는 곳 |
 |---|---|---|
-| `GET /api/studio/concerts` · `/{id}` | `CONCERT` | Concert `GET /api/concerts` · `/{id}` |
+| `GET /api/studio/concerts` · `/{concertId}` | `CONCERT` | Concert `GET /api/concerts` · `/{concertId}` |
 | `POST /api/studio/concerts` | `CONCERT` | Concert `POST /internal/admin/concerts` |
-| `PATCH /api/studio/concerts/{id}` | `CONCERT` | Concert `PATCH /internal/admin/concerts/{id}` |
-| `PUT /api/studio/concerts/{id}/lineup` | `CONCERT` | Concert `PUT /internal/admin/concerts/{id}/lineup` |
-| `GET /api/studio/concerts/{id}/seats` | `SEAT_PRICE` | Concert `GET /api/concerts/{id}/seats` |
-| `POST /api/studio/concerts/{id}/seats` | `SEAT_PRICE` | Concert `POST /internal/admin/concerts/{id}/seats` — `{ seats: [{ seatId, price }] }` |
+| `PATCH /api/studio/concerts/{concertId}` | `CONCERT` | Concert `PATCH /internal/admin/concerts/{concertId}` |
+| `PUT /api/studio/concerts/{concertId}/lineup` | `CONCERT` | Concert `PUT /internal/admin/concerts/{concertId}/lineup` |
+| `GET /api/studio/concerts/{concertId}/seats` | `SEAT_PRICE` | Concert `GET /api/concerts/{concertId}/seats` |
+| `POST /api/studio/concerts/{concertId}/seats` | `SEAT_PRICE` | Concert `POST /internal/admin/concerts/{concertId}/seats` — `{ seats: [{ seatId, price }] }` |
 | `GET /api/studio/concerts/options/venues` | `CONCERT` | Concert `GET /api/concerts/venues` |
-| `GET /api/studio/concerts/options/venues/{venueId}/layout` | `SEAT_PRICE` | Concert `GET /internal/admin/concerts/venues/{id}/layout` |
+| `GET /api/studio/concerts/options/venues/{venueId}/layout` | `SEAT_PRICE` | Concert `GET /internal/admin/concerts/venues/{venueId}/layout` |
 | `GET /api/studio/concerts/options/artists` | `CONCERT` | Catalog `GET /api/catalog/artists` |
-| ✏️ 11/18 `GET`/`POST /api/studio/concerts/{id}/notices` · `PATCH`/`DELETE …/notices/{noticeId}` | `CONCERT` | Concert `/internal/admin/concerts/{id}/notices(/{noticeId})` — 변경 공지 `{ kind: SCHEDULE·VENUE·LINEUP·BOOKING·CANCEL·ETC, title, body }`. 올리면 Concert 가 `concert.notice_posted` → Member 가 라인업 팔로워 + 확정 예매자에게 알림. 고치기 · 지우기는 알림 없음 |
+| ✏️ 11/18 `GET`/`POST /api/studio/concerts/{concertId}/notices` · `PATCH`/`DELETE …/notices/{noticeId}` | `CONCERT` | Concert `/internal/admin/concerts/{concertId}/notices(/{noticeId})` — 변경 공지 `{ kind: SCHEDULE·VENUE·LINEUP·BOOKING·CANCEL·ETC, title, body }`. 올리면 Concert 가 `concert.notice_posted` → Member 가 라인업 팔로워 + 확정 예매자에게 알림. 고치기 · 지우기는 알림 없음 |
 | ✏️ 11/18 `POST /api/studio/concerts/images` | `CONCERT` | (Studio 안) 이미지 업로드 주소 — 6.10 |
 
 - 공연 생성 · 수정 본문에 상세(`description`) · 약관(`terms`) · 요구사항(`requirements`) · 포스터(`posterUrl`) · 이미지(`imageUrls` — 배열)를 넣을 수 있습니다. Concert 가 저장하고 공개 상세 응답에 담습니다. Studio 는 본문을 그대로 넘깁니다.
@@ -267,16 +267,16 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 |---|---|---|
 | `GET /api/studio/products/goods` | `PRODUCT` | Catalog `GET /api/catalog/goods` |
 | `GET /api/studio/products/physical-albums` | `PRODUCT` | Catalog `GET /api/catalog/physical-albums` |
-| `GET /api/studio/products/{id}` | `PRODUCT` | Catalog `GET /api/catalog/products/{id}` |
+| `GET /api/studio/products/{productId}` | `PRODUCT` | Catalog `GET /api/catalog/products/{productId}` |
 | `POST /api/studio/products` | `PRODUCT` | Catalog `POST /internal/admin/catalog/products` |
-| `PATCH /api/studio/products/{id}` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/products/{id}` |
-| `PUT /api/studio/products/{id}/options` | `PRODUCT` | Catalog `PUT /internal/admin/catalog/products/{id}/options` |
+| `PATCH /api/studio/products/{productId}` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/products/{productId}` |
+| `PUT /api/studio/products/{productId}/options` | `PRODUCT` | Catalog `PUT /internal/admin/catalog/products/{productId}/options` |
 | `POST /api/studio/products/options/{optionId}/stock` | `STOCK` | Catalog `POST /internal/admin/catalog/options/{optionId}/stock` |
 | ✏️ 11/18 `PUT /api/studio/products/options/{optionId}/stock` `{ qty, reason }` | `STOCK` | Catalog `PUT /internal/admin/catalog/options/{optionId}/stock` — 재고를 qty 개로 설정 |
-| `GET /api/studio/products/options/artists` · `/{artistId}` | `PRODUCT` | Catalog `GET /api/catalog/artists` · `/{id}` |
-| ✏️ 11/18 `PATCH /api/studio/products/artists/{artistId}` `{ profileUrl?, gender?, composition?, bio? }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/artists/{id}` — 아티스트 사진 · ✏️ 11/22 성별 · 구성 · ✏️ 11/25 소개 글 `bio` (한글 1,000자 이하 · `""` = 지움 · catalog `e9a1742`) (보낸 값만 · 본문 그대로 넘김) |
-| ✏️ 11/18 `GET /api/studio/products/albums/{albumId}` | `PRODUCT` | Catalog `GET /api/catalog/albums/{id}` |
-| ✏️ 11/18 `PATCH /api/studio/products/albums/{albumId}` `{ thumbnailUrl?, description?, tracks?: [{ trackNo, genres?, tempo?, moods?, emotions?, styles? }] }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/albums/{id}` — 표지 · 트랙 태그 (null 은 그대로 · `[]` 은 비움) · ✏️ 11/25 소개 글 `description` (`""` = 지움) |
+| `GET /api/studio/products/options/artists` · `/{artistId}` | `PRODUCT` | Catalog `GET /api/catalog/artists` · `/{artistId}` |
+| ✏️ 11/18 `PATCH /api/studio/products/artists/{artistId}` `{ profileUrl?, gender?, composition?, bio? }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/artists/{artistId}` — 아티스트 사진 · ✏️ 11/22 성별 · 구성 · ✏️ 11/25 소개 글 `bio` (한글 1,000자 이하 · `""` = 지움 · catalog `e9a1742`) (보낸 값만 · 본문 그대로 넘김) |
+| ✏️ 11/18 `GET /api/studio/products/albums/{albumId}` | `PRODUCT` | Catalog `GET /api/catalog/albums/{albumId}` |
+| ✏️ 11/18 `PATCH /api/studio/products/albums/{albumId}` `{ thumbnailUrl?, description?, tracks?: [{ trackNo, genres?, tempo?, moods?, emotions?, styles? }] }` | `PRODUCT` | Catalog `PATCH /internal/admin/catalog/albums/{albumId}` — 표지 · 트랙 태그 (null 은 그대로 · `[]` 은 비움) · ✏️ 11/25 소개 글 `description` (`""` = 지움) |
 | ✏️ 11/18 `POST /api/studio/products/images` | `PRODUCT` | (Studio 안) 이미지 업로드 주소 — 6.10 |
 
 - ✏️ 11/18 상품 등록 · 수정의 `thumbnailUrl`, 아티스트 `profileUrl`, 앨범 `thumbnailUrl` 은 우리 버킷 주소만 받습니다 (6.10). 크롤러가 다시 보내도 관리자가 넣은 이미지 · 트랙 태그 · 판매가는 지워지지 않습니다 (Catalog 가 null 이면 유지).
@@ -286,12 +286,12 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | 메서드 · 경로 | 권한 | 보내는 곳 |
 |---|---|---|
 | `GET /api/studio/cs/members` | `CS_READ` | Member `GET /internal/admin/members` |
-| `GET /api/studio/cs/members/{userId}` | `CS_READ` | Member `GET /internal/admin/members/{id}` |
+| `GET /api/studio/cs/members/{userId}` | `CS_READ` | Member `GET /internal/admin/members/{userId}` |
 | `GET /api/studio/cs/members/{userId}/bookings` | `CS_READ` | Concert `GET /internal/admin/concerts/users/{userId}/bookings` |
 | `GET /api/studio/cs/members/{userId}/orders` | `CS_READ` | Catalog `GET /internal/admin/catalog/users/{userId}/orders` |
 | `GET /api/studio/cs/members/{userId}/payments` | `CS_READ` | Payment `GET /internal/admin/payments/users/{userId}` |
-| `POST /api/studio/cs/bookings/{bookingId}/cancel` | `CS_CANCEL` | Concert `POST /internal/admin/concerts/bookings/{id}/cancel` |
-| `POST /api/studio/cs/orders/{orderId}/cancel` | `CS_CANCEL` | Catalog `POST /internal/admin/catalog/orders/{id}/cancel` |
+| `POST /api/studio/cs/bookings/{bookingId}/cancel` | `CS_CANCEL` | Concert `POST /internal/admin/concerts/bookings/{bookingId}/cancel` |
+| `POST /api/studio/cs/orders/{orderId}/cancel` | `CS_CANCEL` | Catalog `POST /internal/admin/catalog/orders/{orderId}/cancel` |
 
 - 회원 목록(`?q=&size=`)은 회원 id · 이메일(전체 일치) · 닉네임(부분 일치)으로 찾고 **이메일을 가려서**(`ab***@…`) 내려줍니다. 상세는 이메일 전체를 내려줍니다. 어디까지 내줄지는 Member 가 정합니다.
 - 취소 대행은 회원이 직접 취소할 때와 **같은 규칙**(기한 · 상태)을 따르고 사유만 `ADMIN_CANCEL` 로 남습니다. 환불은 Concert · Catalog 가 Payment 로 요청합니다.
@@ -301,7 +301,7 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | 메서드 · 경로 | 권한 | 보내는 곳 |
 |---|---|---|
 | `GET /api/studio/check-in/concerts` | `CHECK_IN` | Concert `GET /internal/admin/concerts/check-in` — 지금 검표할 수 있는 공연 |
-| `POST /api/studio/check-in/concerts/{id}` | `CHECK_IN` | Concert `POST /internal/admin/concerts/{id}/check-in` — `{ token }` → `{ bookingId, seats[], checkedInAt }` |
+| `POST /api/studio/check-in/concerts/{concertId}` | `CHECK_IN` | Concert `POST /internal/admin/concerts/{concertId}/check-in` — `{ token }` → `{ bookingId, seats[], checkedInAt }` |
 
 - `token` 은 찍은 QR 값 그대로입니다 (최대 1000자).
 - 🔴 **검표자(`checkerId`)는 Studio 가 세션의 관리자 id 로 채웁니다.** 화면이 보낸 값은 쓰지 않습니다.
@@ -332,13 +332,13 @@ Catalog 의 관리자 API 는 수집(ingest)과 같은 규칙으로 저장하고
 | 경로 (관리자 화면) | 권한 | 하는 일 |
 |---|---|---|
 | `GET /api/studio/crawl/concerts?status=&beforeId=&size=` | `CONCERT` | 수집 대기 목록 (기본 `PENDING` · 최신순 · 커서) — `{ id, source, externalId, status, concert, receivedAt, reviewedBy, reviewedAt, concertId }` |
-| `POST /api/studio/crawl/concerts/{id}/approve` | `CONCERT` | 등록 — 본문은 `POST /api/studio/concerts` 와 같음 (화면이 후보 값으로 채우고 공연장 · 라인업 id 등을 보완). Studio 가 `source` · `externalId` 를 후보 값으로 넣어 Concert 에 보내고 `concertId` 를 남김 |
-| `POST /api/studio/crawl/concerts/{id}/reject` | `CONCERT` | 등록 안 함 — 같은 후보가 다시 와도 대기 목록에 다시 올리지 않음 |
-| ✏️ 11/18 `POST /api/studio/crawl/concerts/{id}/change-checked` | `CONCERT` | 바뀐 공연을 반영했음 — `CHANGED` → `APPROVED` · `previous` 비움 (공연 수정 · 변경 공지는 관리자가 따로) · `CHANGED` 가 아니면 409 `CRAWL_CONCERT_REVIEWED` |
+| `POST /api/studio/crawl/concerts/{candidateId}/approve` | `CONCERT` | 등록 — 본문은 `POST /api/studio/concerts` 와 같음 (화면이 후보 값으로 채우고 공연장 · 라인업 id 등을 보완). Studio 가 `source` · `externalId` 를 후보 값으로 넣어 Concert 에 보내고 `concertId` 를 남김 |
+| `POST /api/studio/crawl/concerts/{candidateId}/reject` | `CONCERT` | 등록 안 함 — 같은 후보가 다시 와도 대기 목록에 다시 올리지 않음 |
+| ✏️ 11/18 `POST /api/studio/crawl/concerts/{candidateId}/change-checked` | `CONCERT` | 바뀐 공연을 반영했음 — `CHANGED` → `APPROVED` · `previous` 비움 (공연 수정 · 변경 공지는 관리자가 따로) · `CHANGED` 가 아니면 409 `CRAWL_CONCERT_REVIEWED` |
 | `GET /api/studio/crawl/catalog?status=&type=&beforeId=&size=` | `PRODUCT` | 아티스트 · 앨범 수집 대기 (기본 `PENDING` · `type` 없으면 둘 다) — `{ id, type, source, externalId, status, item, receivedAt, reviewedBy, reviewedAt, catalogId, lastError }`. `catalogId` 가 있으면 이미 Catalog 에 있는 것의 변경 |
-| `POST /api/studio/crawl/catalog/{id}/approve` | `PRODUCT` | 승인 → 그 한 건을 Catalog `/internal/admin/catalog/ingest/{artists·albums}` 로 (`X-Admin-Id` 붙음). 본문을 비우면 받은 값, 넣으면 고친 항목으로 저장해 보냄 (`source` · `external_id` 는 후보 값). 앨범은 `artist_ref` 를 승인된 아티스트의 `catalog_id` 로 바꿔 `artist_id` 로 → 아직이면 409 `CRAWL_ARTIST_NOT_APPROVED`. Catalog 가 항목을 거절하면 422 `CRAWL_CATALOG_FAILED`(사유 = message) · 후보는 `PENDING` + `lastError`. 11/18: 앨범의 `physical_albums[].options[].price` · 아티스트의 `goods[].options[].price` 가 0 이하이면 422 `CRAWL_PRICE_REQUIRED`. ✏️ 11/18 오후 판매가는 관리자가 넣는 값이라 크롤러는 null 로 보냄 → null 은 통과해 Catalog 가 판단 (기존 옵션은 저장된 값 유지 · 새 옵션은 판매가가 없으면 `CRAWL_CATALOG_FAILED` "새 옵션 'X' 의 판매가가 필요합니다" → 고친 항목으로 가격을 넣거나 `physical_albums` · `goods` 를 null 로). 이미지 주소(`profile_url` · `thumbnail_url` · `goods[]` · `physical_albums[]`)가 있으면 우리 버킷 파일인지 확인 (6.10). 출처 `evidence` 는 목록 · 상세에 보이고 Catalog 로는 빼고 보냄 |
+| `POST /api/studio/crawl/catalog/{candidateId}/approve` | `PRODUCT` | 승인 → 그 한 건을 Catalog `/internal/admin/catalog/ingest/{artists·albums}` 로 (`X-Admin-Id` 붙음). 본문을 비우면 받은 값, 넣으면 고친 항목으로 저장해 보냄 (`source` · `external_id` 는 후보 값). 앨범은 `artist_ref` 를 승인된 아티스트의 `catalog_id` 로 바꿔 `artist_id` 로 → 아직이면 409 `CRAWL_ARTIST_NOT_APPROVED`. Catalog 가 항목을 거절하면 422 `CRAWL_CATALOG_FAILED`(사유 = message) · 후보는 `PENDING` + `lastError`. 11/18: 앨범의 `physical_albums[].options[].price` · 아티스트의 `goods[].options[].price` 가 0 이하이면 422 `CRAWL_PRICE_REQUIRED`. ✏️ 11/18 오후 판매가는 관리자가 넣는 값이라 크롤러는 null 로 보냄 → null 은 통과해 Catalog 가 판단 (기존 옵션은 저장된 값 유지 · 새 옵션은 판매가가 없으면 `CRAWL_CATALOG_FAILED` "새 옵션 'X' 의 판매가가 필요합니다" → 고친 항목으로 가격을 넣거나 `physical_albums` · `goods` 를 null 로). 이미지 주소(`profile_url` · `thumbnail_url` · `goods[]` · `physical_albums[]`)가 있으면 우리 버킷 파일인지 확인 (6.10). 출처 `evidence` 는 목록 · 상세에 보이고 Catalog 로는 빼고 보냄 |
 | `POST /api/studio/crawl/catalog/approve` | `PRODUCT` | 여러 건 승인 `{ ids }` (최대 100) — 아티스트부터 · 실패해도 계속 → `[{ id, approved, catalogId, code, message }]` |
-| `POST /api/studio/crawl/catalog/{id}/reject` | `PRODUCT` | 적재 안 함 — 다시 와도 대기 목록에 올리지 않음 |
+| `POST /api/studio/crawl/catalog/{candidateId}/reject` | `PRODUCT` | 적재 안 함 — 다시 와도 대기 목록에 올리지 않음 |
 
 - **인증:** `X-Internal-Token` HS256 `{ iss: crawler, aud: studio, exp }` (시계 오차 30초). 서명 키는 시크릿 `crawler.shared-secret` (8.3) — 🔴 서비스 공유 키(`internal.shared-secret`)와 다른 값입니다. 같으면 크롤러가 `iss=studio` 토큰을 만들어 Studio 를 건너뛸 수 있습니다. 파일이 없으면 `/internal/crawl/**` 는 전부 401 입니다.
 - `/internal/crawl/**` 은 관리자 세션 · 작업 기록 대상이 아니고 KT compose 안에서만 부릅니다 (`http://studio:8085`). 밖에서는 `admin.indig.co.kr` 의 WAF ④ 가 `/api/studio/` 밖 경로를 막습니다.
@@ -452,12 +452,12 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 |---|---|
 | **concert** | 공연 필드 `description` · `terms` · `requirements` · `poster_url` · `image_urls` — 테이블 · 생성/수정 DTO · 공개 상세 응답. `genre` 는 Catalog 장르 목록(23개) |
 | | `GET /internal/admin/concerts/venues/{venueId}/layout` — 저장된 구역 · 좌석 |
-| | `GET /internal/admin/concerts/users/{userId}/bookings` · `POST /internal/admin/concerts/bookings/{id}/cancel` (CS) |
+| | `GET /internal/admin/concerts/users/{userId}/bookings` · `POST /internal/admin/concerts/bookings/{bookingId}/cancel` (CS) |
 | | 공연장 · 공연 · 라인업 · 구역 저장 · 좌석 가격 · 체크인 내부 API 는 이미 있었고 `allowed-issuers` 에 `studio` 도 있었습니다 |
 | **catalog** | `app.internal.admin-issuers: [studio]` (쓰지 않던 `assistant` 삭제) |
-| | `POST` · `PATCH /internal/admin/catalog/products(/{id})` · `PUT …/products/{id}/options` · `POST …/options/{optionId}/stock` · ✏️ 11/18 `PUT …/options/{optionId}/stock` |
-| | `GET /internal/admin/catalog/users/{userId}/orders` · `POST /internal/admin/catalog/orders/{id}/cancel` (CS) |
-| **member** | `admin-issuers: [studio]` · `GET /internal/admin/members?q=&size=` · `GET /internal/admin/members/{id}` |
+| | `POST` · `PATCH /internal/admin/catalog/products(/{productId})` · `PUT …/products/{productId}/options` · `POST …/options/{optionId}/stock` · ✏️ 11/18 `PUT …/options/{optionId}/stock` |
+| | `GET /internal/admin/catalog/users/{userId}/orders` · `POST /internal/admin/catalog/orders/{orderId}/cancel` (CS) |
+| **member** | `admin-issuers: [studio]` · `GET /internal/admin/members?q=&size=` · `GET /internal/admin/members/{userId}` |
 | **payment** | `admin-issuers: [studio]` · `GET /internal/admin/payments/users/{userId}` |
 | **Gateway** | 없음 — Studio 는 Gateway 를 거치지 않습니다 |
 
