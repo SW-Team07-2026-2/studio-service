@@ -343,6 +343,28 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(sent.at("/goods/0/options/0/price").isNull()).isTrue();          // 판매가는 Catalog 에 저장된 값 그대로
     }
 
+    /** 11/26 — 굿즈 · 판본 상세 이미지(공식 판매 페이지 주소)는 승인할 때 우리 버킷으로 옮김 · 못 받은 것 · 안쪽 주소는 빼고 승인 */
+    @Test
+    void catalogApprovalImportsDetailImagesAndDropsTheOnesItCannot() throws Exception {
+        String a = "a-" + UUID.randomUUID();
+        String artist = "{\"source\":\"crawler\",\"external_id\":\"" + a + "\",\"name\":\"혁오\","
+                + "\"goods\":[{\"external_id\":\"w-1\",\"name\":\"티셔츠\",\"category\":\"TSHIRT\",\"description\":\"## 상품 정보\\n- 소재: 면\","
+                + "\"detail_image_urls\":[\"https://shop.example/d1.jpg\",\"https://shop.example/broken.jpg\",\"http://10.0.0.5/x.jpg\"],"
+                + "\"options\":[{\"name\":\"M\",\"size\":\"M\",\"price\":null}]},"
+                + "{\"external_id\":\"w-2\",\"name\":\"모자\",\"category\":\"HAT\",\"detail_image_urls\":[\"http://10.0.0.5/y.jpg\"],"
+                + "\"options\":[{\"name\":\"FREE\",\"size\":\"FREE\",\"price\":null}]}]}";
+        long id = intakeCatalog("artists", artist).at("/items/0/id").asLong();
+        STUB.ok("POST", "/internal/admin/catalog/ingest/artists", "{\"items\":[{\"external_id\":\"" + a + "\",\"id\":62,\"result\":\"UPDATED\"}]}");
+        mvc.perform(as(newAdmin("GOODS"), post("/api/studio/crawl/catalog/" + id + "/approve"))).andExpect(status().isOk());
+
+        JsonNode sent = objectMapper.readTree(STUB.received("POST", "/internal/admin/catalog/ingest/artists").get(0).bodyText()).at("/items/0");
+        assertThat(sent.at("/goods/0/detail_image_urls")).hasSize(1);
+        assertThat(sent.at("/goods/0/detail_image_urls/0").asText()).startsWith(FakeImageStore.BASE + "goods/");   // 우리 주소로 바뀜
+        assertThat(sent.at("/goods/0/description").asText()).isEqualTo("## 상품 정보\n- 소재: 면");
+        assertThat(sent.at("/goods/1").has("detail_image_urls")).isFalse();     // 남은 것이 없으면 칸을 빼서 Catalog 가 그대로 둠
+        assertThat(imageStore.imported).contains("https://shop.example/d1.jpg").doesNotContain("http://10.0.0.5/x.jpg");
+    }
+
     @Test
     void catalogIntakeChecksOnlyKeysAndDiffGoesThrough() throws Exception {
         // 앨범에는 artist_ref 가 필요 · 열쇠가 없으면 요청 전체 400

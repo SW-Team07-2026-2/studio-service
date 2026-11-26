@@ -111,6 +111,7 @@ public class CrawlCatalogService {
         }
         ObjectNode item = (ObjectNode) read(candidate);
         requirePrices(item.path(candidate.getType() == Type.ALBUM ? "physical_albums" : "goods"));
+        images.importCatalogDetailImages(item);   // 11/26 상세 이미지 (공식 판매 페이지) → 우리 버킷
         images.checkCatalogItem(item);
         if (candidate.getType() == Type.ALBUM) item = withArtistId(item);
         item.remove("evidence");   // 출처는 관리자 확인용 — Catalog 로는 보내지 않음
