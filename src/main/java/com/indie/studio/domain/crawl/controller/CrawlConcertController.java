@@ -42,26 +42,26 @@ public class CrawlConcertController {
     }
 
     /** 등록 — 본문은 POST /api/studio/concerts 와 같습니다 (후보 값을 화면에서 채우고 공연장 · 라인업 id 등을 보완). source · externalId 는 Studio 가 넣습니다 */
-    @PostMapping("/api/studio/crawl/concerts/{id}/approve")
+    @PostMapping("/api/studio/crawl/concerts/{candidateId}/approve")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<JsonNode> approve(@PathVariable @Positive long id, @RequestBody ObjectNode concert,
+    public ApiResponse<JsonNode> approve(@PathVariable @Positive long candidateId, @RequestBody ObjectNode concert,
                                          @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(crawlConcertService.approve(id, concert, admin));
+        return ApiResponse.onSuccess(crawlConcertService.approve(candidateId, concert, admin));
     }
 
     /** 바뀐 공연 확인 — 공연 수정(PATCH /api/studio/concerts/{concertId}) · 변경 공지를 한 뒤 누릅니다. 다음 변경은 지금 값과 비교 */
-    @PostMapping("/api/studio/crawl/concerts/{id}/change-checked")
+    @PostMapping("/api/studio/crawl/concerts/{candidateId}/change-checked")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<CandidateView> changeChecked(@PathVariable @Positive long id,
+    public ApiResponse<CandidateView> changeChecked(@PathVariable @Positive long candidateId,
                                                     @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(crawlConcertService.changeChecked(id, admin));
+        return ApiResponse.onSuccess(crawlConcertService.changeChecked(candidateId, admin));
     }
 
     /** 등록하지 않음 — 같은 후보가 다시 와도 대기 목록에 다시 올리지 않습니다 */
-    @PostMapping("/api/studio/crawl/concerts/{id}/reject")
+    @PostMapping("/api/studio/crawl/concerts/{candidateId}/reject")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<CandidateView> reject(@PathVariable @Positive long id,
+    public ApiResponse<CandidateView> reject(@PathVariable @Positive long candidateId,
                                              @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(crawlConcertService.reject(id, admin));
+        return ApiResponse.onSuccess(crawlConcertService.reject(candidateId, admin));
     }
 }

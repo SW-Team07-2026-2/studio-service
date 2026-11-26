@@ -46,11 +46,11 @@ public class ConcertAdminController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/api/concerts", query, admin));
     }
 
-    @GetMapping("/api/studio/concerts/{id}")
+    @GetMapping("/api/studio/concerts/{concertId}")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<JsonNode> get(@PathVariable @Positive long id,
+    public ApiResponse<JsonNode> get(@PathVariable @Positive long concertId,
                                      @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/api/concerts/" + id, null, admin));
+        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/api/concerts/" + concertId, null, admin));
     }
 
     /** 공연 등록 — venueId · title · type · startsAt · maxSeatsPerUser · artistIds … + description · terms · requirements · posterUrl · imageUrls */
@@ -63,69 +63,69 @@ public class ConcertAdminController {
     }
 
     /** 공연 수정 — 보낸 값만 바뀝니다 */
-    @PatchMapping("/api/studio/concerts/{id}")
+    @PatchMapping("/api/studio/concerts/{concertId}")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<JsonNode> update(@PathVariable @Positive long id, @RequestBody JsonNode body,
+    public ApiResponse<JsonNode> update(@PathVariable @Positive long concertId, @RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
         images.check(body, "posterUrl", "imageUrls");
-        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.PATCH, "/internal/admin/concerts/" + id, body, admin));
+        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.PATCH, "/internal/admin/concerts/" + concertId, body, admin));
     }
 
     // ── 공연 변경 공지 (11/18) — 새 공지는 라인업 팔로워 + 확정 예매자에게 알림 · 고치기 · 지우기는 알림 없음 ──
 
-    @GetMapping("/api/studio/concerts/{id}/notices")
+    @GetMapping("/api/studio/concerts/{concertId}/notices")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<JsonNode> notices(@PathVariable @Positive long id,
+    public ApiResponse<JsonNode> notices(@PathVariable @Positive long concertId,
                                          @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/internal/admin/concerts/" + id + "/notices", null, admin));
+        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/internal/admin/concerts/" + concertId + "/notices", null, admin));
     }
 
     /** { kind: SCHEDULE|VENUE|LINEUP|BOOKING|CANCEL|ETC, title, body } — 공연 값(일정 등)은 공연 수정으로 따로 바꿉니다 */
-    @PostMapping("/api/studio/concerts/{id}/notices")
+    @PostMapping("/api/studio/concerts/{concertId}/notices")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<JsonNode> createNotice(@PathVariable @Positive long id, @RequestBody JsonNode body,
+    public ApiResponse<JsonNode> createNotice(@PathVariable @Positive long concertId, @RequestBody JsonNode body,
                                               @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts/" + id + "/notices", body, admin));
+        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts/" + concertId + "/notices", body, admin));
     }
 
-    @PatchMapping("/api/studio/concerts/{id}/notices/{noticeId}")
+    @PatchMapping("/api/studio/concerts/{concertId}/notices/{noticeId}")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<JsonNode> updateNotice(@PathVariable @Positive long id, @PathVariable @Positive long noticeId, @RequestBody JsonNode body,
+    public ApiResponse<JsonNode> updateNotice(@PathVariable @Positive long concertId, @PathVariable @Positive long noticeId, @RequestBody JsonNode body,
                                               @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
         return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.PATCH,
-                "/internal/admin/concerts/" + id + "/notices/" + noticeId, body, admin));
+                "/internal/admin/concerts/" + concertId + "/notices/" + noticeId, body, admin));
     }
 
-    @DeleteMapping("/api/studio/concerts/{id}/notices/{noticeId}")
+    @DeleteMapping("/api/studio/concerts/{concertId}/notices/{noticeId}")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<JsonNode> deleteNotice(@PathVariable @Positive long id, @PathVariable @Positive long noticeId,
+    public ApiResponse<JsonNode> deleteNotice(@PathVariable @Positive long concertId, @PathVariable @Positive long noticeId,
                                               @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
         return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.DELETE,
-                "/internal/admin/concerts/" + id + "/notices/" + noticeId, null, admin));
+                "/internal/admin/concerts/" + concertId + "/notices/" + noticeId, null, admin));
     }
 
     /** 라인업 전체 교체 — { artistIds: [...] } (첫 번째 = 헤드라이너) */
-    @PutMapping("/api/studio/concerts/{id}/lineup")
+    @PutMapping("/api/studio/concerts/{concertId}/lineup")
     @RequirePermission(Permission.CONCERT)
-    public ApiResponse<JsonNode> lineup(@PathVariable @Positive long id, @RequestBody JsonNode body,
+    public ApiResponse<JsonNode> lineup(@PathVariable @Positive long concertId, @RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.PUT, "/internal/admin/concerts/" + id + "/lineup", body, admin));
+        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.PUT, "/internal/admin/concerts/" + concertId + "/lineup", body, admin));
     }
 
     /** 이 공연에 지금 매겨진 좌석 · 가격 · 판매 상태 */
-    @GetMapping("/api/studio/concerts/{id}/seats")
+    @GetMapping("/api/studio/concerts/{concertId}/seats")
     @RequirePermission(Permission.SEAT_PRICE)
-    public ApiResponse<JsonNode> seats(@PathVariable @Positive long id,
+    public ApiResponse<JsonNode> seats(@PathVariable @Positive long concertId,
                                        @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/api/concerts/" + id + "/seats", null, admin));
+        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/api/concerts/" + concertId + "/seats", null, admin));
     }
 
     /** 좌석별 가격 — { seats: [{ seatId, price }] }. seatId 는 공연장 배치 좌석 id (아래 layout 에서 받음). 목록에 없는 좌석은 팔지 않습니다 */
-    @PostMapping("/api/studio/concerts/{id}/seats")
+    @PostMapping("/api/studio/concerts/{concertId}/seats")
     @RequirePermission(Permission.SEAT_PRICE)
-    public ApiResponse<JsonNode> priceSeats(@PathVariable @Positive long id, @RequestBody JsonNode body,
+    public ApiResponse<JsonNode> priceSeats(@PathVariable @Positive long concertId, @RequestBody JsonNode body,
                                             @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts/" + id + "/seats", body, admin));
+        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts/" + concertId + "/seats", body, admin));
     }
 
     /** 공연장 고르기 — ?q=&region= */
