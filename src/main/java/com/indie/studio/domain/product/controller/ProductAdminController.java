@@ -78,6 +78,19 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/products/" + productId, body, admin));
     }
 
+    /**
+     * 11/26 아티스트 등록 — 공연 라인업에 있는데 수집되지 않은 팀 (MusicBrainz 에 없음 · 크롤러가 못 찾음).
+     * { name, genres?, label?, debutYear?, profileUrl?, gender?, composition?, bio?, allowSameName? } · 같은 이름이 있으면 Catalog 가 409 (다른 팀이면 allowSameName: true).
+     * 만든 아티스트는 공연 라인업 고르기(GET /api/studio/concerts/options/artists)에 바로 나옵니다
+     */
+    @PostMapping("/api/studio/products/artists")
+    @RequirePermission(Permission.PRODUCT)
+    public ApiResponse<JsonNode> createArtist(@RequestBody JsonNode body,
+                                              @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
+        images.check(body, "profileUrl");
+        return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.POST, "/internal/admin/catalog/artists", body, admin));
+    }
+
     /** 아티스트 이미지 · 성별 · 구성 · 소개 글 바꾸기 — { profileUrl?, gender?, composition?, bio? } 보낸 값만 (이미지는 POST /api/studio/products/images 로 올린 주소) · 11/18 · 11/22 성별 · 구성 · 11/25 소개 글 ("" = 지움) */
     @PatchMapping("/api/studio/products/artists/{artistId}")
     @RequirePermission(Permission.PRODUCT)
