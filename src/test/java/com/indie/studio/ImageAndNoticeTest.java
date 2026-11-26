@@ -69,6 +69,32 @@ class ImageAndNoticeTest extends IntegrationTest {
         assertThat(sentAlbum.at("/tracks/0/moods/0").asText()).isEqualTo("DREAMY");
     }
 
+    /** 11/26 라인업에 있는데 수집되지 않은 팀 — 굿즈 관리자가 Catalog 에 아티스트를 직접 등록 (이미지는 우리 버킷 · 같은 이름 409 는 그대로) */
+    @Test
+    void goodsAdminCreatesArtistMissingFromCrawl() throws Exception {
+        Session goods = newAdmin("GOODS");
+        Session concert = newAdmin("CONCERT");
+        String body = "{\"name\":\"오륜구동\",\"genres\":[\"INDIE_ROCK\"],\"composition\":\"GROUP\"}";
+
+        mvc.perform(as(concert, post("/api/studio/products/artists")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNotFound());                                                    // 권한 밖
+        mvc.perform(as(goods, post("/api/studio/products/artists")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"오륜구동\",\"profileUrl\":\"https://elsewhere.example/a.jpg\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("IMAGE_URL_NOT_ALLOWED"));
+        assertThat(STUB.received("POST", "/internal/admin/catalog/artists")).isEmpty();
+
+        STUB.ok("POST", "/internal/admin/catalog/artists", "{\"id\":41,\"name\":\"오륜구동\"}");
+        mvc.perform(as(goods, post("/api/studio/products/artists")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.id").value(41));
+        assertThat(objectMapper.readTree(STUB.received("POST", "/internal/admin/catalog/artists").get(0).bodyText()))
+                .isEqualTo(objectMapper.readTree(body));
+
+        STUB.reply("POST", "/internal/admin/catalog/artists", 409,
+                "{\"isSuccess\":false,\"code\":\"CONFLICT\",\"message\":\"같은 이름의 아티스트가 있습니다 — id [41]\"}");
+        mvc.perform(as(goods, post("/api/studio/products/artists")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.message").value("같은 이름의 아티스트가 있습니다 — id [41]"));
+    }
+
     @Test
     void concertImagesAndNotices() throws Exception {
         Session concert = newAdmin("CONCERT");
