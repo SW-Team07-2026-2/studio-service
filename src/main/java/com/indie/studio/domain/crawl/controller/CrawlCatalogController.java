@@ -48,11 +48,11 @@ public class CrawlCatalogController {
      * 승인 → Catalog 적재. 본문을 비우면 받은 값 그대로, 넣으면 고친 항목(받은 항목과 같은 모양 · snake_case)으로 저장해 보냅니다.
      * 409 CRAWL_ARTIST_NOT_APPROVED = 앨범의 아티스트를 먼저 승인 · 422 CRAWL_CATALOG_FAILED = Catalog 가 거절 (사유는 message · lastError)
      */
-    @PostMapping("/api/studio/crawl/catalog/{id}/approve")
+    @PostMapping("/api/studio/crawl/catalog/{candidateId}/approve")
     @RequirePermission(Permission.PRODUCT)
-    public ApiResponse<CatalogCandidateView> approve(@PathVariable @Positive long id, @RequestBody(required = false) ObjectNode item,
+    public ApiResponse<CatalogCandidateView> approve(@PathVariable @Positive long candidateId, @RequestBody(required = false) ObjectNode item,
                                                      @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(crawlCatalogService.approve(id, item, admin));
+        return ApiResponse.onSuccess(crawlCatalogService.approve(candidateId, item, admin));
     }
 
     /** 여러 건 승인 { ids: [...] } (최대 100) — 아티스트부터 처리하고, 실패한 것은 항목별 code · message */
@@ -64,10 +64,10 @@ public class CrawlCatalogController {
     }
 
     /** 적재하지 않음 — 같은 후보가 다시 와도 대기 목록에 올리지 않습니다 */
-    @PostMapping("/api/studio/crawl/catalog/{id}/reject")
+    @PostMapping("/api/studio/crawl/catalog/{candidateId}/reject")
     @RequirePermission(Permission.PRODUCT)
-    public ApiResponse<CatalogCandidateView> reject(@PathVariable @Positive long id,
+    public ApiResponse<CatalogCandidateView> reject(@PathVariable @Positive long candidateId,
                                                     @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(crawlCatalogService.reject(id, admin));
+        return ApiResponse.onSuccess(crawlCatalogService.reject(candidateId, admin));
     }
 }

@@ -48,11 +48,11 @@ public class CheckInController {
      * 입장 처리 — { token } → { bookingId, seats[], checkedInAt }. 이미 입장한 QR 은 409 ALREADY_CHECKED_IN (+ checkedInAt).
      * 🔴 검표자(checkerId)는 세션의 관리자 id 로 채웁니다 — 화면이 보낸 값을 쓰지 않습니다.
      */
-    @PostMapping("/api/studio/check-in/concerts/{id}")
+    @PostMapping("/api/studio/check-in/concerts/{concertId}")
     @RequirePermission(Permission.CHECK_IN)
-    public ApiResponse<JsonNode> checkIn(@PathVariable @Positive long id, @Valid @RequestBody CheckInRequest request,
+    public ApiResponse<JsonNode> checkIn(@PathVariable @Positive long concertId, @Valid @RequestBody CheckInRequest request,
                                          @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts/" + id + "/check-in",
+        return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts/" + concertId + "/check-in",
                 Map.of("token", request.token(), "checkerId", admin.id()), admin));
     }
 }

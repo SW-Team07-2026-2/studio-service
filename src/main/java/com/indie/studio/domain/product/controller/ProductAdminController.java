@@ -53,11 +53,11 @@ public class ProductAdminController {
     }
 
     /** 상품 + 옵션별 가격 · 재고 */
-    @GetMapping("/api/studio/products/{id}")
+    @GetMapping("/api/studio/products/{productId}")
     @RequirePermission(Permission.PRODUCT)
-    public ApiResponse<JsonNode> get(@PathVariable @Positive long id,
+    public ApiResponse<JsonNode> get(@PathVariable @Positive long productId,
                                      @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/products/" + id, null, admin));
+        return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/products/" + productId, null, admin));
     }
 
     /** 상품 등록 — productType(GOODS · PHYSICAL_ALBUM) + 종류별 값 + options[{ name, vinylColor, size, price, qty }] */
@@ -70,12 +70,12 @@ public class ProductAdminController {
     }
 
     /** 상품 수정 — 이름 · 썸네일 · 구매처 주소 · 분류 등 보낸 값만 */
-    @PatchMapping("/api/studio/products/{id}")
+    @PatchMapping("/api/studio/products/{productId}")
     @RequirePermission(Permission.PRODUCT)
-    public ApiResponse<JsonNode> update(@PathVariable @Positive long id, @RequestBody JsonNode body,
+    public ApiResponse<JsonNode> update(@PathVariable @Positive long productId, @RequestBody JsonNode body,
                                         @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
         images.check(body, "thumbnailUrl", "detailImageUrls");   // 11/26 상세 이미지도 우리 버킷 주소만
-        return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/products/" + id, body, admin));
+        return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/products/" + productId, body, admin));
     }
 
     /** 아티스트 이미지 · 성별 · 구성 · 소개 글 바꾸기 — { profileUrl?, gender?, composition?, bio? } 보낸 값만 (이미지는 POST /api/studio/products/images 로 올린 주소) · 11/18 · 11/22 성별 · 구성 · 11/25 소개 글 ("" = 지움) */
@@ -105,11 +105,11 @@ public class ProductAdminController {
     }
 
     /** 옵션 추가 · 수정 — { options: [{ id?, name, vinylColor, size, price }] }. 새 옵션에는 재고 행이 함께 생깁니다 */
-    @PutMapping("/api/studio/products/{id}/options")
+    @PutMapping("/api/studio/products/{productId}/options")
     @RequirePermission(Permission.PRODUCT)
-    public ApiResponse<JsonNode> options(@PathVariable @Positive long id, @RequestBody JsonNode body,
+    public ApiResponse<JsonNode> options(@PathVariable @Positive long productId, @RequestBody JsonNode body,
                                          @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PUT, "/internal/admin/catalog/products/" + id + "/options", body, admin));
+        return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PUT, "/internal/admin/catalog/products/" + productId + "/options", body, admin));
     }
 
     /** 재고 조정 — { delta, reason }. 입고는 +, 회수 · 파손은 −. 0 아래로는 내려가지 않습니다 */
