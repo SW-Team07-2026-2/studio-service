@@ -120,4 +120,17 @@ class S3ImageStoreTest {
         assertThatThrownBy(() -> store.importFrom(host + "/moved", ImageKind.POSTER))
                 .isInstanceOfSatisfying(GeneralException.class, e -> assertThat(e.getErrorCode()).isEqualTo(ImageErrorCode.IMAGE_IMPORT_FAILED));
     }
+
+    /** 11/26 상세 이미지 — https 이고 공개 주소로만 풀리는 곳만 (안쪽 주소 · 사설 · Tailscale · 사용자 정보 · 다른 포트는 거절) */
+    @Test
+    void importsDetailImagesOnlyFromPublicHttpsHosts() {
+        String local = "http://127.0.0.1:" + origin.getAddress().getPort() + "/poster.png";
+        for (String url : List.of(local, "https://127.0.0.1/poster.png", "https://10.0.0.5/a.png", "https://192.168.0.2/a.png",
+                "https://100.99.13.54/a.png", "https://169.254.169.254/latest", "https://[::1]/a.png", "https://[fd00::1]/a.png",
+                "https://user@example.com/a.png", "https://example.com:8443/a.png", "https://localhost/a.png")) {
+            assertThatThrownBy(() -> store.importPublic(url, ImageKind.GOODS)).as(url)
+                    .isInstanceOfSatisfying(GeneralException.class, e -> assertThat(e.getErrorCode()).isEqualTo(ImageErrorCode.IMAGE_URL_NOT_ALLOWED));
+        }
+        assertThat(S3ImageStore.publicHttps("https://8.8.8.8/a.png")).isTrue();
+    }
 }
