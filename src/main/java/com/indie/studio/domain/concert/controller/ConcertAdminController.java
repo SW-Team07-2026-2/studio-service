@@ -112,12 +112,12 @@ public class ConcertAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.PUT, "/internal/admin/concerts/" + concertId + "/lineup", body, admin));
     }
 
-    /** 이 공연에 지금 매겨진 좌석 · 가격 · 판매 상태 */
+    /** 이 공연에 지금 매겨진 좌석 · 가격 · 판매 상태 — 11/27 ?sessionId= (회차가 둘 이상이면 필수 · 하나면 생략 가능) 를 그대로 넘깁니다 */
     @GetMapping("/api/studio/concerts/{concertId}/seats")
     @RequirePermission(Permission.SEAT_PRICE)
-    public ApiResponse<JsonNode> seats(@PathVariable @Positive long concertId,
+    public ApiResponse<JsonNode> seats(@PathVariable @Positive long concertId, @RequestParam MultiValueMap<String, String> query,
                                        @RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
-        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/api/concerts/" + concertId + "/seats", null, admin));
+        return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/api/concerts/" + concertId + "/seats", query, admin));
     }
 
     /** 좌석별 가격 — { seats: [{ seatId, price }] }. seatId 는 공연장 배치 좌석 id (아래 layout 에서 받음). 목록에 없는 좌석은 팔지 않습니다 */
