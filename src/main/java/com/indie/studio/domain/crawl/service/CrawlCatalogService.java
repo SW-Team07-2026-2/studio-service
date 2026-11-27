@@ -111,10 +111,13 @@ public class CrawlCatalogService {
         }
         ObjectNode item = (ObjectNode) read(candidate);
         requirePrices(item.path(candidate.getType() == Type.ALBUM ? "physical_albums" : "goods"));
-        images.importCatalogDetailImages(item);   // 11/26 상세 이미지 (공식 판매 페이지) → 우리 버킷
         images.checkCatalogItem(item);
         if (candidate.getType() == Type.ALBUM) item = withArtistId(item);
         item.remove("evidence");   // 출처는 관리자 확인용 — Catalog 로는 보내지 않음
+        // 11/27 굿즈 · 판본 상세 이미지는 크롤러가 상세 설명을 쓸 때 읽은 자료 (관리자 확인용) — Catalog 로는 보내지 않음 (상품은 대표 이미지만)
+        for (String products : List.of("goods", "physical_albums")) {
+            item.path(products).forEach(p -> { if (p instanceof ObjectNode node) node.remove("detail_image_urls"); });
+        }
 
         String path = candidate.getType() == Type.ARTIST ? "/internal/admin/catalog/ingest/artists" : "/internal/admin/catalog/ingest/albums";
         ObjectNode body = objectMapper.createObjectNode();
