@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 스키마 — 이 테스트 컨텍스트가 뜬 것 자체가 Flyway(V1 구조 · V2 값)와 엔티티의 일치(ddl-auto: validate)를 확인합니다.
+ * 스키마 - 이 테스트 컨텍스트가 뜬 것 자체가 Flyway(V1 구조, V2 값)와 엔티티의 일치(ddl-auto: validate)를 확인합니다.
  * 여기서는 V2 의 CHECK 값 목록과 Java enum 이 같은지 봅니다 (한쪽만 고치면 깨짐).
  */
 class StudioSchemaTest extends IntegrationTest {
@@ -41,7 +41,7 @@ class StudioSchemaTest extends IntegrationTest {
     @Autowired
     private StringRedisTemplate redis;
 
-    /** 마이그레이션은 V1(구조) · V2(값) 두 파일 */
+    /** 마이그레이션은 V1(구조), V2(값) 두 파일 */
     @Test
     void migrationsAreSchemaThenValues() {
         assertThat(jdbc.queryForList("select concat(version, ' ', description) from flyway_schema_history "
@@ -75,7 +75,7 @@ class StudioSchemaTest extends IntegrationTest {
         mvc.perform(post("/api/studio/auth/login").contentType(MediaType.APPLICATION_JSON)   // 인증 코드를 넣지 않은 2단계 대기 하나
                 .content(json(Map.of("loginId", MASTER_ID, "password", MASTER_PASSWORD)))).andExpect(status().isOk());
 
-        // Redis — 세션 · 2단계 대기는 쿠키 값의 해시(64자 hex)만 키로 두고, 모두 만료가 걸려 있습니다 (최대 로그인 + 8시간)
+        // Redis - 세션, 2단계 대기는 쿠키 값의 해시(64자 hex)만 키로 두고, 모두 만료가 걸려 있습니다 (최대 로그인 + 8시간)
         var keys = redis.keys("studio:auth:*");
         assertThat(keys).anyMatch(k -> k.startsWith("studio:auth:session:")).anyMatch(k -> k.startsWith("studio:auth:challenge:"))
                 .allMatch(k -> k.matches("studio:auth:(session|challenge):[0-9a-f]{64}|studio:auth:admin-sessions:[0-9]+"));
@@ -85,7 +85,7 @@ class StudioSchemaTest extends IntegrationTest {
         String challengeKey = keys.stream().filter(k -> k.startsWith("studio:auth:challenge:")).findFirst().orElseThrow();
         assertThat((String) redis.opsForHash().get(challengeKey, "code")).matches("[0-9a-f]{64}");
 
-        // MySQL — 비밀번호는 bcrypt, 인증 코드 받을 메일은 소문자 · 쉼표 구분 (인증 코드는 MySQL 에 없습니다)
+        // MySQL - 비밀번호는 bcrypt, 인증 코드 받을 메일은 소문자, 쉼표 구분 (인증 코드는 MySQL 에 없습니다)
         assertThat(jdbc.queryForList("select password_hash from admin_account", String.class)).isNotEmpty().allMatch(h -> h.startsWith("$2a$"));
         assertThat(jdbc.queryForList("select otp_emails from admin_account", String.class))
                 .isNotEmpty().allMatch(e -> e.matches("[^@\\s,]+@[^@\\s,]+(,[^@\\s,]+@[^@\\s,]+)*") && e.equals(e.toLowerCase()));

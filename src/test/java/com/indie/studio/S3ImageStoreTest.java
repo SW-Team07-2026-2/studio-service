@@ -33,7 +33,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 진짜 S3 동작 — LocalStack S3 에 업로드 주소로 올리고 · 확인하고 · 허용한 곳의 포스터를 옮깁니다 (Docker 필요) */
+/** 진짜 S3 동작 - LocalStack S3 에 업로드 주소로 올리고, 확인하고, 허용한 곳의 포스터를 옮깁니다 (Docker 필요) */
 class S3ImageStoreTest {
 
     private static final LocalStackContainer S3 = new LocalStackContainer(DockerImageName.parse("localstack/localstack:3.8.1"))

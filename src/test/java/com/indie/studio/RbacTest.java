@@ -26,10 +26,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 역할 — 하위 관리자는 자기 역할의 탭 · API 만 보고, 다른 역할의 것은 있는지도 알 수 없습니다 */
+/** 역할 - 하위 관리자는 자기 역할의 탭, API 만 보고, 다른 역할의 것은 있는지도 알 수 없습니다 */
 class RbacTest extends IntegrationTest {
 
-    /** 영역마다 조회 하나 — [탭 key, 경로] */
+    /** 영역마다 조회 하나 - [탭 key, 경로] */
     private static final List<String[]> AREAS = List.of(
             new String[]{"venues", "/api/studio/venues"},
             new String[]{"concerts", "/api/studio/concerts"},
@@ -78,7 +78,7 @@ class RbacTest extends IntegrationTest {
         assertThat(body(forbidden).get("message")).isEqualTo(body(missing).get("message"));
         assertThat(body(forbidden).get("code")).isEqualTo(body(missing).get("code"));
 
-        // 쓰기도 마찬가지 — 권한 밖이면 본문 · CSRF 를 보기 전에 404, 그리고 Catalog 에는 아무것도 가지 않습니다
+        // 쓰기도 마찬가지 - 권한 밖이면 본문, CSRF 를 보기 전에 404, 그리고 Catalog 에는 아무것도 가지 않습니다
         mvc.perform(as(stage, post("/api/studio/products")).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"x\"}"))
                 .andExpect(status().isNotFound());
         mvc.perform(post("/api/studio/products").cookie(stage.cookie()).contentType(MediaType.APPLICATION_JSON).content("{}"))
@@ -111,7 +111,7 @@ class RbacTest extends IntegrationTest {
         assertThat(token.getJWTClaimsSet().getAudience()).containsExactly("concert");
     }
 
-    /** 검표 — 검표자는 세션의 관리자입니다. 화면이 다른 checkerId 를 보내도 쓰지 않고, 이미 입장한 QR 은 Concert 의 409 를 그대로 냅니다 */
+    /** 검표 - 검표자는 세션의 관리자입니다. 화면이 다른 checkerId 를 보내도 쓰지 않고, 이미 입장한 QR 은 Concert 의 409 를 그대로 냅니다 */
     @Test
     void checkInSendsSessionAdminAsChecker() throws Exception {
         Session checker = newAdmin("CHECKER");
@@ -134,7 +134,7 @@ class RbacTest extends IntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
-    /** 11/18 재고 설정 — 굿즈 관리자가 옵션 재고를 qty 개로 맞춤 → Catalog PUT 으로 본문 그대로. 다른 역할은 404 */
+    /** 재고 설정 - 굿즈 관리자가 옵션 재고를 qty 개로 맞춤 -> Catalog PUT 으로 본문 그대로. 다른 역할은 404 */
     @Test
     void goodsAdminSetsStockThroughCatalog() throws Exception {
         Session goods = newAdmin("GOODS");
@@ -163,7 +163,7 @@ class RbacTest extends IntegrationTest {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("VENUE_EXISTS"))
                 .andExpect(jsonPath("$.message").value("이미 등록된 공연장입니다"));
 
-        // 대상 서비스가 Studio 의 내부 토큰을 거절 — 관리자 세션 문제가 아니므로 401 이 아니라 502
+        // 대상 서비스가 Studio 의 내부 토큰을 거절 - 관리자 세션 문제가 아니므로 401 이 아니라 502
         STUB.reply("POST", "/internal/admin/concerts/venues", 401, "{\"isSuccess\":false,\"code\":\"INTERNAL_TOKEN_INVALID\",\"message\":\"x\"}");
         mvc.perform(as(stage, post("/api/studio/venues")).contentType(MediaType.APPLICATION_JSON).content(venue))
                 .andExpect(status().isBadGateway()).andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"));
@@ -236,14 +236,14 @@ class RbacTest extends IntegrationTest {
         mvc.perform(as(master, patch("/api/studio/accounts/" + id)).contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("otpEmails", List.of(email(loginId)))))).andExpect(status().isOk());
 
-        // 비밀번호 초기화 — 옛 비밀번호는 끝
+        // 비밀번호 초기화 - 옛 비밀번호는 끝
         mvc.perform(as(master, post("/api/studio/accounts/" + id + "/password-reset")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"password\":\"reset-by-master-77\"}")).andExpect(status().isOk());
         mvc.perform(post("/api/studio/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("loginId", loginId, "password", PASSWORD)))).andExpect(status().isUnauthorized());
         Session afterReset = login(loginId, "reset-by-master-77");
 
-        // 비활성화 — 세션이 끊기고 로그인도 안 됩니다. 계정은 목록에 남습니다
+        // 비활성화 - 세션이 끊기고 로그인도 안 됩니다. 계정은 목록에 남습니다
         mvc.perform(as(master, patch("/api/studio/accounts/" + id)).contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"DISABLED\"}"))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/studio/me").cookie(afterReset.cookie())).andExpect(status().isUnauthorized());
@@ -253,7 +253,7 @@ class RbacTest extends IntegrationTest {
         assertThat(accounts.findValuesAsText("loginId")).contains(loginId, MASTER_ID);
         assertThat(accounts.toString()).doesNotContain("passwordHash").doesNotContain("$2a$");
 
-        // 마스터는 자기 역할 · 상태를 못 바꿉니다 — 활성 마스터가 항상 1명 남습니다
+        // 마스터는 자기 역할, 상태를 못 바꿉니다 - 활성 마스터가 항상 1명 남습니다
         long masterId = master.me().get("id").asLong();
         mvc.perform(as(master, patch("/api/studio/accounts/" + masterId)).contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"CS\"}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CANNOT_CHANGE_SELF"));
@@ -261,7 +261,7 @@ class RbacTest extends IntegrationTest {
                 .andExpect(status().isConflict());
     }
 
-    /** 🔴 권한 선언이 빠진 핸들러는 아무도 못 부르지만(기본 거부), 빠뜨린 것 자체를 여기서 잡습니다 */
+    /** 권한 선언이 빠진 핸들러는 아무도 못 부르지만(기본 거부), 빠뜨린 것 자체를 여기서 잡습니다 */
     @Test
     void everyStudioHandlerDeclaresAPermission() {
         List<String> missing = new ArrayList<>();

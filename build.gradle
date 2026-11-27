@@ -14,19 +14,19 @@ repositories { mavenCentral() }
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'   // 로그인 2단계 대기 · 세션
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'   // 로그인 2단계 대기, 세션
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-mail'         // 로그인 인증 코드 메일 (SMTP)
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
-    runtimeOnly 'com.mysql:mysql-connector-j'               // 🔴 다른 서비스(PostgreSQL)와 달리 Studio 는 KT 의 MySQL 을 씁니다
+    runtimeOnly 'com.mysql:mysql-connector-j'               // 다른 서비스(PostgreSQL)와 달리 Studio 는 KT 의 MySQL 을 씁니다
 
-    implementation 'org.springframework.security:spring-security-crypto'   // BCrypt 만 — Spring Security 필터 체인은 쓰지 않습니다
+    implementation 'org.springframework.security:spring-security-crypto'   // BCrypt 만 - Spring Security 필터 체인은 쓰지 않습니다
     implementation 'com.nimbusds:nimbus-jose-jwt:9.40'      // 나가는 X-Internal-Token (iss=studio) 발급
     implementation platform('software.amazon.awssdk:bom:2.57.1')
-    implementation('software.amazon.awssdk:s3') {                // 공개 이미지 업로드 주소 · 확인 · KOPIS 포스터 옮기기 (11/18)
+    implementation('software.amazon.awssdk:s3') {                // 공개 이미지 업로드 주소, 확인, KOPIS 포스터 옮기기
         exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'   // 비동기 클라이언트는 쓰지 않음
-        exclude group: 'software.amazon.awssdk', module: 'apache5-client'     // Spring Boot 3.3 의 httpclient5(5.3)와 맞지 않음 → JDK 연결 클라이언트
+        exclude group: 'software.amazon.awssdk', module: 'apache5-client'     // Spring Boot 3.3 의 httpclient5(5.3)와 맞지 않음 -> JDK 연결 클라이언트
     }
     implementation 'software.amazon.awssdk:url-connection-client'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
@@ -41,6 +41,6 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // Docker 29 는 API 1.44 미만을 거부합니다 — Testcontainers(docker-java) 기본값이 더 낮아 컨테이너를 못 띄웁니다
+    // Docker 29 는 API 1.44 미만을 거부합니다 - Testcontainers(docker-java) 기본값이 더 낮아 컨테이너를 못 띄웁니다
     systemProperty 'api.version', '1.44'
 }

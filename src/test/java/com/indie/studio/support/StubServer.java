@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
-/** AWS 서비스(Concert · Catalog · Member · Payment)와 GPU 서버 자리에 세우는 가짜 HTTP 서버 — 받은 요청을 기록합니다 */
+/** AWS 서비스(Concert, Catalog, Member, Payment)와 GPU 서버 자리에 세우는 가짜 HTTP 서버 - 받은 요청을 기록합니다 */
 public class StubServer {
 
     public record Received(String method, String path, String query, Map<String, String> headers, byte[] body) {
@@ -50,7 +50,7 @@ public class StubServer {
         fallback = NOT_FOUND;
     }
 
-    /** 성공 응답 — result 자리에 넣을 JSON */
+    /** 성공 응답 - result 자리에 넣을 JSON */
     public void ok(String method, String path, String resultJson) {
         reply(method, path, 200, "{\"isSuccess\":true,\"code\":\"OK\",\"message\":\"성공\",\"result\":" + resultJson + "}");
     }

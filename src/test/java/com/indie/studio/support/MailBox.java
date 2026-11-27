@@ -9,7 +9,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 가짜 메일 서버 — 보낸 메일을 모아 두고, 받는 주소로 인증 코드를 꺼냅니다. failNext() 뒤 한 번은 SMTP 장애처럼 실패합니다 */
+/** 가짜 메일 서버 - 보낸 메일을 모아 두고, 받는 주소로 인증 코드를 꺼냅니다. failNext() 뒤 한 번은 SMTP 장애처럼 실패합니다 */
 public class MailBox implements MailSender {
 
     private static final Pattern CODE = Pattern.compile("인증 코드: (\\d{6})");

@@ -7,7 +7,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicReference;
 
-/** 테스트가 시간을 넘길 수 있는 시계 — OTP 단계 · 잠금 · 세션 만료 확인용 */
+/** 테스트가 시간을 넘길 수 있는 시계 - OTP 단계, 잠금, 세션 만료 확인용 */
 public class MutableClock extends Clock {
 
     private final AtomicReference<Instant> now = new AtomicReference<>(Instant.now());
