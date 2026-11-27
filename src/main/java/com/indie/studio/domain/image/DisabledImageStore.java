@@ -24,9 +24,4 @@ public class DisabledImageStore implements ImageStore {
     public String importFrom(String url, ImageKind kind) {
         throw new GeneralException(ImageErrorCode.IMAGE_STORE_DISABLED);
     }
-
-    @Override
-    public String importPublic(String url, ImageKind kind) {
-        throw new GeneralException(ImageErrorCode.IMAGE_STORE_DISABLED);
-    }
 }

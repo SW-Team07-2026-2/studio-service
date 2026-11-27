@@ -3,9 +3,6 @@ package com.indie.studio.domain.image;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.indie.studio.global.common.exception.GeneralException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,8 +11,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ImageGuard {
-
-    private static final Logger log = LoggerFactory.getLogger(ImageGuard.class);
 
     private final ImageStore store;
 
@@ -34,40 +29,11 @@ public class ImageGuard {
         }
     }
 
-    /** 크롤링 아티스트 · 앨범 후보 (snake_case) — 아티스트 · 앨범 이미지와 굿즈 · 피지컬 앨범 이미지 · 상세 이미지(11/26) */
+    /** 크롤링 아티스트 · 앨범 후보 (snake_case) — 아티스트 · 앨범 이미지와 굿즈 · 피지컬 앨범 이미지 */
     public void checkCatalogItem(JsonNode item) {
         check(item, "profile_url", "thumbnail_url");
-        for (JsonNode goods : item.path("goods")) check(goods, "thumbnail_url", "detail_image_urls");
-        for (JsonNode physical : item.path("physical_albums")) check(physical, "thumbnail_url", "detail_image_urls");
-    }
-
-    /**
-     * 11/26 크롤링 굿즈 · 판본 상세 이미지 (공식 판매 페이지 주소) — 승인할 때 받아 버킷으로 옮긴 주소로 바꿉니다.
-     * 이미 우리 주소면 그대로 · 못 받은 이미지는 빼고 승인을 이어 갑니다 (남은 것이 없으면 칸을 빼서 Catalog 가 저장된 값을 그대로 둠)
-     */
-    public void importCatalogDetailImages(ObjectNode item) {
-        for (JsonNode goods : item.path("goods")) importDetail(goods, ImageKind.GOODS);
-        for (JsonNode physical : item.path("physical_albums")) importDetail(physical, ImageKind.PHYSICAL);
-    }
-
-    private void importDetail(JsonNode product, ImageKind kind) {
-        if (!(product instanceof ObjectNode node) || !(node.get("detail_image_urls") instanceof ArrayNode urls)) return;
-        ArrayNode moved = node.arrayNode();
-        for (JsonNode url : urls) {
-            if (!url.isTextual()) continue;
-            try {
-                store.verify(url.asText());
-                moved.add(url.asText());                         // 관리자가 바꿔 넣은 우리 주소
-            } catch (GeneralException notOurs) {
-                try {
-                    moved.add(store.importPublic(url.asText(), kind));
-                } catch (GeneralException e) {
-                    log.warn("detail_image_skipped url={} code={}", url.asText(), e.getErrorCode().getCode());
-                }
-            }
-        }
-        if (moved.isEmpty()) node.remove("detail_image_urls");
-        else node.set("detail_image_urls", moved);
+        for (JsonNode goods : item.path("goods")) check(goods, "thumbnail_url");
+        for (JsonNode physical : item.path("physical_albums")) check(physical, "thumbnail_url");
     }
 
     /** 크롤링 공연 등록 — KOPIS 포스터 · 소개 이미지는 Studio 가 받아 버킷으로 옮긴 주소로 바꾸고, 나머지는 확인합니다 */

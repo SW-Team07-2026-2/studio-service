@@ -16,9 +16,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.net.URI;
-import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -26,7 +24,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -112,42 +109,6 @@ public class S3ImageStore implements ImageStore {
     @Override
     public String importFrom(String url, ImageKind kind) {
         if (!importable(url)) throw new GeneralException(ImageErrorCode.IMAGE_URL_NOT_ALLOWED);
-        return fetchAndStore(url, kind);
-    }
-
-    /** 11/26 공개 주소로만 풀리는 https 호스트 — 받는 순간 다시 풀리는 주소(DNS 리바인딩)까지 막지는 못하지만, 이미지로 확인된 것만 공개 버킷에 둡니다 */
-    @Override
-    public String importPublic(String url, ImageKind kind) {
-        if (!publicHttps(url)) throw new GeneralException(ImageErrorCode.IMAGE_URL_NOT_ALLOWED);
-        return fetchAndStore(url, kind);
-    }
-
-    public static boolean publicHttps(String url) {
-        try {
-            URI uri = URI.create(url.strip());
-            if (!"https".equals(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null
-                    || (uri.getPort() != -1 && uri.getPort() != 443)) return false;
-            InetAddress[] addresses = InetAddress.getAllByName(uri.getHost());
-            return addresses.length > 0 && Arrays.stream(addresses).allMatch(S3ImageStore::isPublic);
-        } catch (IllegalArgumentException | UnknownHostException e) {
-            return false;
-        }
-    }
-
-    private static boolean isPublic(InetAddress a) {
-        if (a.isAnyLocalAddress() || a.isLoopbackAddress() || a.isLinkLocalAddress() || a.isSiteLocalAddress() || a.isMulticastAddress()) {
-            return false;
-        }
-        byte[] b = a.getAddress();
-        if (b.length == 4) {
-            int x = b[0] & 0xff, y = b[1] & 0xff;
-            return x != 0 && !(x == 100 && y >= 64 && y < 128) && !(x == 192 && y == 0 && (b[2] & 0xff) == 0)
-                    && !(x == 198 && (y == 18 || y == 19)) && x < 224;   // 100.64/10 (CGNAT · Tailscale) · 192.0.0/24 · 198.18/15 · 예약
-        }
-        return (b[0] & 0xfe) != 0xfc;                                    // fc00::/7 (ULA)
-    }
-
-    private String fetchAndStore(String url, ImageKind kind) {
         byte[] bytes;
         try {
             HttpResponse<InputStream> res = http.send(HttpRequest.newBuilder(URI.create(url.strip())).timeout(Duration.ofSeconds(15))

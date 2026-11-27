@@ -49,13 +49,6 @@ public class FakeImageStore implements ImageStore {
         return url != null && (url.startsWith("http://www.kopis.or.kr/") || url.startsWith("https://www.kopis.or.kr/"));
     }
 
-    /** 11/26 상세 이미지 — https://shop.example/ 아래만 받은 것으로 (broken 이 들어가면 못 받음) */
-    @Override
-    public String importPublic(String url, ImageKind kind) {
-        if (!url.startsWith("https://shop.example/")) throw new GeneralException(ImageErrorCode.IMAGE_URL_NOT_ALLOWED);
-        return importFrom(url, kind);
-    }
-
     @Override
     public String importFrom(String url, ImageKind kind) {
         if (url.contains("broken")) throw new GeneralException(ImageErrorCode.IMAGE_IMPORT_FAILED);
