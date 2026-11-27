@@ -1,11 +1,11 @@
 spring:
-  # 로컬 시크릿도 운영과 같은 방식 — ./local-secrets/ 의 파일 이름이 프로퍼티 키 (local/setup-local.sh 가 만듭니다)
+  # 로컬 시크릿도 운영과 같은 방식 - ./local-secrets/ 의 파일 이름이 프로퍼티 키 (local/setup-local.sh 가 만듭니다)
   config.import: optional:configtree:./local-secrets/
   datasource.url: jdbc:mysql://localhost:3307/studio?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
   data.redis:
     host: localhost
     port: 6382                                # local/compose.yml 의 studio-redis
-  mail:                                       # local/compose.yml 의 studio-mail (Mailpit) — 인증 코드는 http://localhost:8025 에서 봅니다
+  mail:                                       # local/compose.yml 의 studio-mail (Mailpit) - 인증 코드는 http://localhost:8025 에서 봅니다
     host: localhost
     port: 1025
     properties:
@@ -24,7 +24,7 @@ app:
     payment: http://localhost:8084
   gpu.base-url: http://localhost:9100
   cors.allowed-origins: http://localhost:5173
-  image:                                      # local/compose.yml 의 studio-s3 (LocalStack) — 키는 local-secrets/image.* (아무 값)
+  image:                                      # local/compose.yml 의 studio-s3 (LocalStack) - 키는 local-secrets/image.* (아무 값)
     bucket: indig-images-local
     endpoint: http://localhost:4566
     public-base-url: http://localhost:4566/indig-images-local

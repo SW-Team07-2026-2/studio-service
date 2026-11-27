@@ -17,7 +17,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 로그인 — 1차 아이디 · 비밀번호(DB) → 2차 메일 인증 코드 → 대시보드 */
+/** 로그인 - 1차 아이디, 비밀번호(DB) -> 2차 메일 인증 코드 -> 대시보드 */
 class AuthFlowTest extends IntegrationTest {
 
     @Test
@@ -25,17 +25,17 @@ class AuthFlowTest extends IntegrationTest {
         String loginId = newLoginId("cs");
         createAccount(loginMaster(), loginId, "CS");
 
-        // 로그인 전에는 무엇을 불러도 401 — 있는 경로든 없는 경로든 같습니다
+        // 로그인 전에는 무엇을 불러도 401 - 있는 경로든 없는 경로든 같습니다
         mvc.perform(get("/api/studio/me")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         mvc.perform(get("/api/studio/no-such-api")).andExpect(status().isUnauthorized());
 
-        // 1차 — 틀린 비밀번호와 없는 아이디는 같은 응답이고, 메일은 가지 않습니다
+        // 1차 - 틀린 비밀번호와 없는 아이디는 같은 응답이고, 메일은 가지 않습니다
         int mailsBefore = mail.count();
         mvc.perform(loginRequest(loginId, "wrong-password-123")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
         mvc.perform(loginRequest("nobody.here", PASSWORD)).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
         assertThat(mail.count()).isEqualTo(mailsBefore);
 
-        // 1차 통과 — 인증 코드 메일이 한 통 갑니다. 응답에는 가린 주소만 있고 코드는 없습니다. 아직 로그인된 것이 아닙니다
+        // 1차 통과 - 인증 코드 메일이 한 통 갑니다. 응답에는 가린 주소만 있고 코드는 없습니다. 아직 로그인된 것이 아닙니다
         MvcResult first = mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isOk()).andReturn();
         assertThat(result(first).get("next").asText()).isEqualTo("OTP");
         assertThat(result(first).get("sentTo")).hasSize(1);
@@ -51,12 +51,12 @@ class AuthFlowTest extends IntegrationTest {
         assertThat(first.getResponse().getCookie("STUDIO_SESSION")).isNull();
         mvc.perform(get("/api/studio/me").cookie(challenge)).andExpect(status().isUnauthorized());
 
-        // 2차 — 틀린 코드는 거절, 대기 쿠키 없이는 맞는 코드도 처음부터
+        // 2차 - 틀린 코드는 거절, 대기 쿠키 없이는 맞는 코드도 처음부터
         mvc.perform(otpRequest(challenge, wrong(code))).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_INVALID"));
         mvc.perform(post("/api/studio/auth/otp").contentType(MediaType.APPLICATION_JSON).content(json(Map.of("code", code))))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("OTP_CHALLENGE_EXPIRED"));
 
-        // 맞는 코드 — 세션 쿠키가 내려오고 내 역할의 탭만 보입니다
+        // 맞는 코드 - 세션 쿠키가 내려오고 내 역할의 탭만 보입니다
         MvcResult second = mvc.perform(otpRequest(challenge, code)).andExpect(status().isOk()).andReturn();
         Cookie sessionCookie = second.getResponse().getCookie("STUDIO_SESSION");
         assertThat(sessionCookie.isHttpOnly()).isTrue();
@@ -78,12 +78,12 @@ class AuthFlowTest extends IntegrationTest {
 
     @Test
     void sharedAccountSendsSameCodeToEveryAddress() throws Exception {
-        // bootstrap.admins 로 심은 공용 계정 (메일 2개 · 파일에는 대문자 · 공백이 섞여 있음)
+        // bootstrap.admins 로 심은 공용 계정 (메일 2개, 파일에는 대문자, 공백이 섞여 있음)
         MvcResult first = mvc.perform(loginRequest(SHARED_ID, PASSWORD)).andExpect(status().isOk()).andReturn();
         assertThat(result(first).get("sentTo")).hasSize(2);
         String code = mail.lastCode(SHARED_EMAILS.get(0));
         assertThat(mail.lastCode(SHARED_EMAILS.get(1))).isEqualTo(code);
-        // 한 통에 한 사람 — 받는 사람끼리 주소가 보이지 않습니다
+        // 한 통에 한 사람 - 받는 사람끼리 주소가 보이지 않습니다
         assertThat(mail.to(SHARED_EMAILS.get(0))).allSatisfy(m -> assertThat(m.getTo()).hasSize(1));
 
         mvc.perform(otpRequest(first.getResponse().getCookie("STUDIO_2FA"), code)).andExpect(status().isOk())
@@ -120,7 +120,7 @@ class AuthFlowTest extends IntegrationTest {
         String loginId = newLoginId("goods");
         createAccount(loginMaster(), loginId, "GOODS");
 
-        // 메일 서버가 받지 않으면 503 — 2단계 대기 쿠키도 내려가지 않습니다. 다시 로그인하면 됩니다
+        // 메일 서버가 받지 않으면 503 - 2단계 대기 쿠키도 내려가지 않습니다. 다시 로그인하면 됩니다
         mail.failNext();
         MvcResult failed = mvc.perform(loginRequest(loginId, PASSWORD)).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("OTP_MAIL_FAILED")).andReturn();
@@ -150,7 +150,7 @@ class AuthFlowTest extends IntegrationTest {
         mvc.perform(get("/api/studio/me").cookie(idle.cookie())).andExpect(status().isUnauthorized());
 
         Session busy = newAdmin("STAGE");
-        for (int i = 0; i < 20; i++) {   // 25분마다 요청 — 쉬지 않아도 8시간이 지나면 끝
+        for (int i = 0; i < 20; i++) {   // 25분마다 요청 - 쉬지 않아도 8시간이 지나면 끝
             clock.advance(Duration.ofMinutes(25));
             int expected = i < 19 ? 200 : 401;
             mvc.perform(get("/api/studio/me").cookie(busy.cookie())).andExpect(status().is(expected));

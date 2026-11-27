@@ -13,7 +13,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/** 테스트용 이미지 저장소 — https://img.test/ 아래에 "올린" 주소만 통과 · KOPIS 주소는 옮긴 것으로 기록 (진짜 S3 동작은 S3ImageStoreTest) */
+/** 테스트용 이미지 저장소 - https://img.test/ 아래에 "올린" 주소만 통과, KOPIS 주소는 옮긴 것으로 기록 (진짜 S3 동작은 S3ImageStoreTest) */
 public class FakeImageStore implements ImageStore {
 
     public static final String BASE = "https://img.test/";
