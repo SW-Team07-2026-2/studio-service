@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Studio 는 KT 노드에서 돕니다 — AWS 노드(arm64)와 아키텍처가 다를 수 있어 두 가지로 빌드합니다
+# Studio 는 KT 노드에서 돕니다 - AWS 노드(arm64)와 아키텍처가 다를 수 있어 두 가지로 빌드합니다
 # 빌드: docker buildx build --platform linux/amd64,linux/arm64 -t <레지스트리>/indig-studio:$(git rev-parse --short HEAD) --push .
 FROM --platform=$BUILDPLATFORM gradle:8.10-jdk21 AS build
 WORKDIR /app

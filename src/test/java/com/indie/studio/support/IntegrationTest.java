@@ -30,9 +30,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 앱 전체 + 진짜 MySQL 8.4 (Testcontainers · Flyway V1 + ddl-auto validate) + 진짜 Redis 7.4 (비밀번호 있음) + 가짜 AWS 서비스 · GPU 서버 · 메일 서버(MailBox).
- * 🔴 Docker 가 꺼져 있으면 이 테스트들은 실패합니다 (건너뛰지 않음).
- * DB 는 테스트 사이에 비우지 않습니다 — 테스트마다 다른 아이디를 씁니다 (newLoginId).
+ * 앱 전체 + 진짜 MySQL 8.4 (Testcontainers, Flyway V1 + ddl-auto validate) + 진짜 Redis 7.4 (비밀번호 있음) + 가짜 AWS 서비스, GPU 서버, 메일 서버(MailBox).
+ * Docker 가 꺼져 있으면 이 테스트들은 실패합니다 (건너뛰지 않음).
+ * DB 는 테스트 사이에 비우지 않습니다 - 테스트마다 다른 아이디를 씁니다 (newLoginId).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -44,7 +44,7 @@ public abstract class IntegrationTest {
     protected static final String MASTER_ID = "master";
     protected static final String MASTER_PASSWORD = "correct-horse-battery";
     protected static final String PASSWORD = "sub-admin-password-1";
-    /** bootstrap.admins 로 심는 공용 계정 — 인증 코드가 두 주소로 갑니다 */
+    /** bootstrap.admins 로 심는 공용 계정 - 인증 코드가 두 주소로 갑니다 */
     protected static final String SHARED_ID = "shared.cs";
     protected static final List<String> SHARED_EMAILS = List.of("first@studio.test", "second@studio.test");
     protected static final StubServer STUB = new StubServer();
@@ -117,7 +117,7 @@ public abstract class IntegrationTest {
     @Autowired
     protected FakeImageStore imageStore;
 
-    /** 로그인한 관리자 — 세션 쿠키와 CSRF 토큰 */
+    /** 로그인한 관리자 - 세션 쿠키와 CSRF 토큰 */
     public record Session(Cookie cookie, String csrf, JsonNode me) {}
 
     @BeforeEach
@@ -129,7 +129,7 @@ public abstract class IntegrationTest {
         return prefix + "." + SEQUENCE.incrementAndGet();
     }
 
-    /** 1차(아이디 · 비밀번호) → 메일로 온 인증 코드 → 2차 */
+    /** 1차(아이디, 비밀번호) -> 메일로 온 인증 코드 -> 2차 */
     protected Session login(String loginId, String password) throws Exception {
         MvcResult first = mvc.perform(post("/api/studio/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("loginId", loginId, "password", password)))).andExpect(status().isOk()).andReturn();
@@ -158,7 +158,7 @@ public abstract class IntegrationTest {
         return result(created).get("id").asLong();
     }
 
-    /** 테스트 계정이 인증 코드를 받는 주소 (createAccount · 마스터) */
+    /** 테스트 계정이 인증 코드를 받는 주소 (createAccount, 마스터) */
     protected static String email(String loginId) {
         return loginId + "@studio.test";
     }

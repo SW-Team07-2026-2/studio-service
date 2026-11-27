@@ -167,7 +167,7 @@ public class StageJobService {
     }
 
     /**
-     * GPU 검증 없이 관리자가 넣은 구역 값을 바로 Concert 로 보냅니다 ( ). 작업(stage_job)은 만들지 않습니다
+     * GPU 검증 없이 관리자가 넣은 구역 값을 바로 Concert 로 보냅니다 . 작업(stage_job)은 만들지 않습니다
      *
      * @param venueId 공연장 ID
      * @param values Concert에 저장할 구역 배치 값

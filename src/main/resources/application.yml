@@ -1,30 +1,30 @@
 spring:
   application.name: studio
-  config.import: optional:configtree:/etc/secrets/      # KT 전용 Secret — 🔴 AWS 서비스들의 app-secrets 를 마운트하지 않습니다
+  config.import: optional:configtree:/etc/secrets/      # KT 전용 Secret - AWS 서비스들의 app-secrets 를 마운트하지 않습니다
 
   datasource:
     # 시각은 전부 UTC 로 저장합니다 (DATETIME(3))
     url: jdbc:mysql://${DB_HOST}:3306/studio?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
     username: studio_app
-    password: ${db.password}                  # ← configtree 파일
+    password: ${db.password}                  # <- configtree 파일
     hikari:
       maximum-pool-size: 5                    # 관리자는 동시에 한 자릿수
       minimum-idle: 1
       connection-timeout: 3000
 
   data:
-    redis:                                    # 로그인 2단계 대기 · 세션 (KT 의 Redis · 같은 compose)
+    redis:                                    # 로그인 2단계 대기, 세션 (KT 의 Redis, 같은 compose)
       host: ${REDIS_HOST}
       port: 6379
-      password: ${redis.password}             # ← configtree 파일
+      password: ${redis.password}             # <- configtree 파일
       timeout: 2s
       repositories.enabled: false             # @RedisHash 저장소는 쓰지 않습니다 (StringRedisTemplate 만)
 
-  mail:                                       # 로그인 인증 코드 메일 — Gmail SMTP (앱 비밀번호). 보내는 주소는 app.login.mail-from
+  mail:                                       # 로그인 인증 코드 메일 - Gmail SMTP (앱 비밀번호). 보내는 주소는 app.login.mail-from
     host: ${SMTP_HOST:smtp.gmail.com}
     port: ${SMTP_PORT:587}
-    username: ${smtp.username:}               # ← configtree 파일 (Gmail 주소)
-    password: ${smtp.password:}               # ← configtree 파일 (앱 비밀번호 16자)
+    username: ${smtp.username:}               # <- configtree 파일 (Gmail 주소)
+    password: ${smtp.password:}               # <- configtree 파일 (앱 비밀번호 16자)
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
@@ -70,36 +70,36 @@ app:
     cookie-secure: true
     cookie-same-site: ${STUDIO_COOKIE_SAMESITE:Strict}   # 관리자 화면이 다른 사이트(도메인)에 있으면 None
   login:
-    challenge-minutes: 5                      # 1차(아이디 · 비밀번호) 통과 후 메일 인증 코드 입력까지
-    max-failures: 5                           # 비밀번호 · 인증 코드 연속 실패
+    challenge-minutes: 5                      # 1차(아이디, 비밀번호) 통과 후 메일 인증 코드 입력까지
+    max-failures: 5                           # 비밀번호, 인증 코드 연속 실패
     lock-minutes: 15
     bcrypt-strength: 12
     mail-from: ${STUDIO_MAIL_FROM:indig <noreply@indig.co.kr>}   # Gmail "다른 주소에서 메일 보내기"에 등록한 주소여야 그대로 나갑니다
-  # 들어오는 크롤러 호출(/internal/crawl/**)의 키는 configtree crawler.shared-secret — 없으면 그 경로만 401 (CrawlerTokenFilter)
-  internal-token:                             # 나가는 호출 (Studio → Concert · Catalog · Member · Payment)
+  # 들어오는 크롤러 호출(/internal/crawl/**)의 키는 configtree crawler.shared-secret - 없으면 그 경로만 401 (CrawlerTokenFilter)
+  internal-token:                             # 나가는 호출 (Studio -> Concert, Catalog, Member, Payment)
     issuer: studio
     ttl-seconds: 300
-  services:                                   # AWS · 온프레미스 서비스 — KT 에서 Cloudflare 관리자 터널(link-aws · link-onprem.indig.co.kr)을 건너갑니다 · 운영은 4개가 같은 주소 (manifests services/studio)
+  services:                                   # AWS, 온프레미스 서비스 - KT 에서 Cloudflare 관리자 터널(link-aws, link-onprem.indig.co.kr)을 건너갑니다, 운영은 4개가 같은 주소 (manifests services/studio)
     concert: ${CONCERT_BASE_URL:http://concert:8083}
     catalog: ${CATALOG_BASE_URL:http://catalog:8082}
     member: ${MEMBER_BASE_URL:http://member:8081}
     payment: ${PAYMENT_BASE_URL:http://payment:8084}
     connect-timeout-ms: 2000
     read-timeout-ms: 10000                    # 터널 + 좌석 수천 건 저장
-  gpu:                                        # 무대 그리기 검증 서버 (개인 GPU 서버 · WireGuard 피어) — 토큰은 configtree gpu.token
+  gpu:                                        # 무대 그리기 검증 서버 (개인 GPU 서버, WireGuard 피어) - 토큰은 configtree gpu.token
     base-url: ${GPU_BASE_URL:}
     connect-timeout-ms: 3000
     read-timeout-ms: 180000                   # 분석이 느려도 기다립니다 (백그라운드 작업)
     max-image-bytes: 10485760
   cors:
     allowed-origins: ${STUDIO_ALLOWED_ORIGINS:}          # 관리자 화면 출처 (쉼표 구분). 같은 출처면 비워 둡니다
-  # 공개 이미지 (아티스트 · 앨범 · 굿즈 · 피지컬 · 공연) — S3 버킷 + CloudFront img.indig.co.kr (11/18 결정). DB 에는 이 주소만 저장합니다
-  # 키는 configtree image.access-key · image.secret-key (없으면 AWS 기본 자격 증명) — 이미지 경로 쓰기 · 읽기만 되는 IAM 유저
+  # 공개 이미지 (아티스트, 앨범, 굿즈, 피지컬, 공연) - S3 버킷 + CloudFront img.indig.co.kr (결정). DB 에는 이 주소만 저장합니다
+  # 키는 configtree image.access-key, image.secret-key (없으면 AWS 기본 자격 증명) - 이미지 경로 쓰기, 읽기만 되는 IAM 유저
   image:
-    bucket: ${IMAGE_BUCKET:}                  # 비우면 업로드 · 이미지 주소 저장을 막습니다 (이미지 칸을 비운 승인 · 등록은 됨)
+    bucket: ${IMAGE_BUCKET:}                  # 비우면 업로드, 이미지 주소 저장을 막습니다 (이미지 칸을 비운 승인, 등록은 됨)
     region: ${IMAGE_REGION:ap-northeast-2}
     public-base-url: ${IMAGE_PUBLIC_BASE_URL:https://img.indig.co.kr}
     endpoint: ${IMAGE_S3_ENDPOINT:}           # 로컬 MinIO 만 (운영은 비움)
     max-bytes: 5242880                        # 5MB
     upload-ttl-seconds: 300                   # 업로드 주소 유효 시간
-    import-hosts: www.kopis.or.kr,kopis.or.kr # Studio 가 받아 버킷으로 옮겨도 되는 곳 — KOPIS 포스터 (리다이렉트는 따라가지 않음)
+    import-hosts: www.kopis.or.kr,kopis.or.kr # Studio 가 받아 버킷으로 옮겨도 되는 곳 - KOPIS 포스터 (리다이렉트는 따라가지 않음)

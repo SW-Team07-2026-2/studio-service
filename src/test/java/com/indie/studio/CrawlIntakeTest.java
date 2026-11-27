@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 크롤러 → Studio (11/17 결정) — 공연 · 아티스트 · 앨범 모두 후보로 받아 관리자가 확인한 뒤 사용자 서비스로 */
+/** 크롤러 -> Studio (결정) - 공연, 아티스트, 앨범 모두 후보로 받아 관리자가 확인한 뒤 사용자 서비스로 */
 class CrawlIntakeTest extends IntegrationTest {
 
     @Test
@@ -31,7 +31,7 @@ class CrawlIntakeTest extends IntegrationTest {
         String body = "{\"items\":[{\"source\":\"crawler\",\"external_id\":\"x\",\"concert\":{}}]}";
         mvc.perform(post("/internal/crawl/concerts").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized());
-        // 서비스 공유 시크릿으로 만든 토큰 · 다른 발급자 · 다른 대상 · 만료 — 전부 401
+        // 서비스 공유 시크릿으로 만든 토큰, 다른 발급자, 다른 대상, 만료 - 전부 401
         mvc.perform(crawler(post("/internal/crawl/concerts"), token(SHARED_SECRET, "crawler", "studio", 60)).content(body))
                 .andExpect(status().isUnauthorized());
         mvc.perform(crawler(post("/internal/crawl/concerts"), token(CRAWLER_SECRET, "studio", "studio", 60)).content(body))
@@ -74,7 +74,7 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(sent.get("externalId").asText()).isEqualTo(ext);
         assertThat(sent.get("venueId").asLong()).isEqualTo(3);
 
-        // 두 번 등록 · 등록 안 함은 막힙니다
+        // 두 번 등록, 등록 안 함은 막힙니다
         mvc.perform(as(concert, post("/api/studio/crawl/concerts/" + id + "/approve")).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CRAWL_CONCERT_REVIEWED"));
         mvc.perform(as(concert, post("/api/studio/crawl/concerts/" + id + "/reject")))
@@ -85,7 +85,7 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(row.get("previous").isNull()).isTrue();
         assertThat(row.get("reviewedBy").asLong()).isEqualTo(concert.me().get("id").asLong());
 
-        // 등록한 공연이 출처에서 바뀌면 CHANGED — 비교 기준은 등록 때 값 (두 번 바뀌어도) · 확인하면 지금 값이 새 기준
+        // 등록한 공연이 출처에서 바뀌면 CHANGED - 비교 기준은 등록 때 값 (두 번 바뀌어도), 확인하면 지금 값이 새 기준
         assertThat(intake(item.formatted("h2", "여름 공연 (추가 회차)")).at("/items/0/result").asText()).isEqualTo("UNCHANGED");
         assertThat(intake(item.formatted("h3", "바뀐 제목")).at("/items/0/result").asText()).isEqualTo("CHANGED");
         assertThat(intake(item.formatted("h4", "또 바뀐 제목")).at("/items/0/result").asText()).isEqualTo("CHANGED");
@@ -102,7 +102,7 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(row(concert, "CHANGED", id).at("/previous/title").asText()).isEqualTo("또 바뀐 제목");
     }
 
-    /** 11/18 — KOPIS 포스터 · 소개 이미지는 승인할 때 Studio 가 받아 우리 버킷 주소로 바꿔 보냄 · 못 받으면 승인 안 됨(관리자가 직접 올림) · 외부 주소는 거절 */
+    /** - KOPIS 포스터, 소개 이미지는 승인할 때 Studio 가 받아 우리 버킷 주소로 바꿔 보냄, 못 받으면 승인 안 됨(관리자가 직접 올림), 외부 주소는 거절 */
     @Test
     void concertApprovalMovesKopisImagesIntoOurBucket() throws Exception {
         Session concert = newAdmin("CONCERT");
@@ -193,7 +193,7 @@ class CrawlIntakeTest extends IntegrationTest {
         mvc.perform(as(goods, post("/api/studio/crawl/catalog/" + albumId + "/approve"))).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CRAWL_CATALOG_REVIEWED"));
 
-        // 승인된 것도 값이 바뀌어 오면 다시 승인 대기 (새 굿즈 등) — catalogId 는 그대로
+        // 승인된 것도 값이 바뀌어 오면 다시 승인 대기 (새 굿즈 등) - catalogId 는 그대로
         assertThat(intakeCatalog("artists", artist.formatted("h1")).at("/items/0/result").asText()).isEqualTo("UNCHANGED");
         assertThat(intakeCatalog("artists", artist.formatted("h2")).at("/items/0/result").asText()).isEqualTo("UPDATED");
         JsonNode again = find(result(mvc.perform(as(goods, get("/api/studio/crawl/catalog").param("type", "ARTIST"))).andReturn()), artistId);
@@ -216,7 +216,7 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(row.get("status").asText()).isEqualTo("PENDING");
         assertThat(row.get("lastError").asText()).isEqualTo("name too short");
 
-        // 관리자가 고친 값으로 승인 — source · external_id 는 Studio 가 원래 값으로 넣습니다
+        // 관리자가 고친 값으로 승인 - source, external_id 는 Studio 가 원래 값으로 넣습니다
         STUB.ok("POST", "/internal/admin/catalog/ingest/artists", "{\"items\":[{\"external_id\":\"" + a + "\",\"id\":21,\"result\":\"CREATED\"}]}");
         JsonNode fixed = result(mvc.perform(as(goods, post("/api/studio/crawl/catalog/" + id + "/approve")).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"source\":\"other\",\"name\":\"고친 이름\",\"genres\":[\"ROCK\"]}"))
@@ -249,7 +249,7 @@ class CrawlIntakeTest extends IntegrationTest {
         STUB.ok("POST", "/internal/admin/catalog/ingest/artists", "{\"items\":[{\"external_id\":\"" + a + "\",\"id\":51,\"result\":\"CREATED\"}]}");
         mvc.perform(as(goods, post("/api/studio/crawl/catalog/" + artistId + "/approve"))).andExpect(status().isOk());
 
-        // 크롤러가 보낸 0원 그대로는 승인되지 않음 (여러 건 승인도 같음) — Catalog 로 아무것도 가지 않음
+        // 크롤러가 보낸 0원 그대로는 승인되지 않음 (여러 건 승인도 같음) - Catalog 로 아무것도 가지 않음
         mvc.perform(as(goods, post("/api/studio/crawl/catalog/" + albumId + "/approve")))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("CRAWL_PRICE_REQUIRED"));
         JsonNode many = result(mvc.perform(as(goods, post("/api/studio/crawl/catalog/approve")).contentType(MediaType.APPLICATION_JSON)
@@ -285,7 +285,7 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(STUB.received("POST", "/internal/admin/catalog/ingest/artists").stream()
                 .anyMatch(r -> r.bodyText().contains(a))).isFalse();
 
-        // 가격을 넣어 승인 → Catalog 로는 출처 없이
+        // 가격을 넣어 승인 -> Catalog 로는 출처 없이
         STUB.ok("POST", "/internal/admin/catalog/ingest/artists", "{\"items\":[{\"external_id\":\"" + a + "\",\"id\":61,\"result\":\"CREATED\"}]}");
         mvc.perform(as(goods, post("/api/studio/crawl/catalog/" + id + "/approve")).contentType(MediaType.APPLICATION_JSON)
                 .content(artist.formatted(35000))).andExpect(status().isOk()).andExpect(jsonPath("$.result.catalogId").value(61));
@@ -312,7 +312,7 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(results.get(2).get("code").asText()).isEqualTo("CRAWL_CATALOG_NOT_FOUND");
     }
 
-    /** 11/18 — 이미지는 우리 버킷에 올린 주소만 · 판매가 null 은 그대로 Catalog 로 (기존 옵션은 판매가 유지 · 새 옵션은 Catalog 가 거절) */
+    /** - 이미지는 우리 버킷에 올린 주소만, 판매가 null 은 그대로 Catalog 로 (기존 옵션은 판매가 유지, 새 옵션은 Catalog 가 거절) */
     @Test
     void catalogApprovalAcceptsOnlyUploadedImagesAndPassesNullPrices() throws Exception {
         String a = "a-" + UUID.randomUUID();
@@ -343,7 +343,7 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(sent.at("/goods/0/options/0/price").isNull()).isTrue();          // 판매가는 Catalog 에 저장된 값 그대로
     }
 
-    /** 11/27 — 굿즈 · 판본 상세 이미지(크롤러가 상세 설명을 쓸 때 읽은 이미지)는 받아 오지도, Catalog 로 보내지도 않음 · 상세 설명은 그대로 */
+    /** - 굿즈, 판본 상세 이미지(크롤러가 상세 설명을 쓸 때 읽은 이미지)는 받아 오지도, Catalog 로 보내지도 않음, 상세 설명은 그대로 */
     @Test
     void catalogApprovalDropsDetailImagesButKeepsDescription() throws Exception {
         String a = "a-" + UUID.randomUUID();
@@ -363,7 +363,7 @@ class CrawlIntakeTest extends IntegrationTest {
 
     @Test
     void catalogIntakeChecksOnlyKeysAndDiffGoesThrough() throws Exception {
-        // 앨범에는 artist_ref 가 필요 · 열쇠가 없으면 요청 전체 400
+        // 앨범에는 artist_ref 가 필요, 열쇠가 없으면 요청 전체 400
         mvc.perform(crawler(post("/internal/crawl/catalog/albums"), crawlerToken())
                         .content("{\"items\":[{\"source\":\"crawler\",\"external_id\":\"x\",\"title\":\"t\"}]}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
@@ -380,7 +380,7 @@ class CrawlIntakeTest extends IntegrationTest {
         assertThat(call.headers()).doesNotContainKey("x-admin-id");
     }
 
-    /** 11/24 — 크롤러는 관리자가 처리한 후보의 키 · 상태만 받아 거절한 것을 다시 찾지 않음 (대기 중인 것은 안 옴) */
+    /** - 크롤러는 관리자가 처리한 후보의 키, 상태만 받아 거절한 것을 다시 찾지 않음 (대기 중인 것은 안 옴) */
     @Test
     void reviewedListsOnlyWhatAdminsHandled() throws Exception {
         String c1 = "rv-" + UUID.randomUUID(), c2 = "rv-" + UUID.randomUUID(), a1 = "rv-" + UUID.randomUUID(), a2 = "rv-" + UUID.randomUUID();
@@ -429,7 +429,7 @@ class CrawlIntakeTest extends IntegrationTest {
         return token(CRAWLER_SECRET, "crawler", "studio", 60);
     }
 
-    /** 만료는 앱의 시계 기준 — 다른 테스트가 시계를 넘겨 둡니다 */
+    /** 만료는 앱의 시계 기준 - 다른 테스트가 시계를 넘겨 둡니다 */
     private String token(String secret, String iss, String aud, long expInSeconds) throws Exception {
         SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), new JWTClaimsSet.Builder()
                 .issuer(iss).audience(aud).expirationTime(Date.from(clock.instant().plusSeconds(expInSeconds))).build());

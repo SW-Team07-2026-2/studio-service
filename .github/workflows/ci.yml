@@ -1,7 +1,7 @@
-# 빌드 · 테스트 (MySQL 8.4 · Redis 7.4 는 Testcontainers 가 띄웁니다) · Docker Hub push (amd64 · arm64) · manifests-kt 이미지 태그 커밋
-# Studio 는 KT VM 의 docker compose 에서만 돕니다 — ECR 에는 올리지 않습니다. manifests-kt main 에 태그가 커밋되면
-#   그 레포의 deploy 워크플로가 KT VM 의 self-hosted runner 에서 docker compose up 을 합니다 (이 레포는 공개라 runner 를 붙이지 않음)
-# 22A — 키는 deploy 잡만 받습니다. MANIFESTS_KT_DEPLOY_KEY · DOCKERHUB_TOKEN 은 Environment `deploy` (배포 브랜치 main 만) 의 secret — PR 실행(test 잡)에는 없습니다
+# 빌드, 테스트 (MySQL 8.4, Redis 7.4 는 Testcontainers 가 띄웁니다), Docker Hub push (amd64, arm64), manifests-kt 이미지 태그 커밋
+# Studio 는 KT VM 의 docker compose 에서만 돕니다 - ECR 에는 올리지 않습니다. manifests-kt main 에 태그가 커밋되면
+# 그 레포의 deploy 워크플로가 KT VM 의 self-hosted runner 에서 docker compose up 을 합니다 (이 레포는 공개라 runner 를 붙이지 않음)
+# 22A - 키는 deploy 잡만 받습니다. MANIFESTS_KT_DEPLOY_KEY, DOCKERHUB_TOKEN 은 Environment `deploy` (배포 브랜치 main 만) 의 secret - PR 실행(test 잡)에는 없습니다
 name: ci
 on:
   push: { branches: [main, develop] }
@@ -24,7 +24,7 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: deploy      # ★ 다른 브랜치에서 이 잡을 고쳐 돌려도 GitHub 이 거절
+    environment: deploy      # 다른 브랜치에서 이 잡을 고쳐 돌려도 GitHub 이 거절
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -36,16 +36,16 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64        # ★ KT VM 의 아키텍처를 가리지 않게
+          platforms: linux/amd64,linux/arm64        # KT VM 의 아키텍처를 가리지 않게
           push: true
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/indig-studio:${{ github.sha }}   # ★ 커밋 SHA — latest 금지
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/indig-studio:${{ github.sha }}   # 커밋 SHA - latest 금지
 
-      # manifests-kt 의 compose.yml 이미지 태그를 고쳐 main 에 직접 커밋 → KT runner 가 docker compose up
+      # manifests-kt 의 compose.yml 이미지 태그를 고쳐 main 에 직접 커밋 -> KT runner 가 docker compose up
       - uses: actions/checkout@v4
         with:
           repository: SW-Team07-2026-2/manifests-kt
           ref: main                                        # 기본 브랜치(develop)가 아니라 KT 가 배포하는 main 에 커밋
-          ssh-key: ${{ secrets.MANIFESTS_KT_DEPLOY_KEY }}  # manifests-kt 쓰기 전용 deploy key — KT VM 권한은 0
+          ssh-key: ${{ secrets.MANIFESTS_KT_DEPLOY_KEY }}  # manifests-kt 쓰기 전용 deploy key - KT VM 권한은 0
           path: manifests-kt
       - working-directory: manifests-kt
         env:
@@ -55,11 +55,11 @@ jobs:
         run: |
           sed -i -E "s|^([[:space:]]*image:[[:space:]]*)[^[:space:]]*/indig-studio:[^[:space:]]*|\1${IMAGE}:${TAG}|" "$FILE"
           grep -q "image: ${IMAGE}:${TAG}" "$FILE" || { echo "compose.yml 에서 indig-studio 이미지 줄을 못 찾음" >&2; exit 1; }
-          git diff --quiet && exit 0                   # 같은 커밋 재실행 — 바뀐 게 없음
+          git diff --quiet && exit 0                   # 같은 커밋 재실행 - 바뀐 게 없음
           git config user.name "indie-ci"
           git config user.email "indie-ci@users.noreply.github.com"
           git commit -qam "deploy(studio): ${TAG::7}"
-          for i in 1 2 3; do                           # 다른 CI(크롤러 등)와 동시에 push 하면 거절 → rebase 후 재시도
+          for i in 1 2 3; do                           # 다른 CI(크롤러 등)와 동시에 push 하면 거절 -> rebase 후 재시도
             git pull -q --rebase && git push -q && exit 0
             sleep $((RANDOM % 5 + 1))
           done

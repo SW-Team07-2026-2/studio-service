@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 무대 그리기 — 그린 도면 → GPU 서버 검증 → 관리자가 결과 확인 → Concert 로 전송 */
+/** 무대 그리기 - 그린 도면 -> GPU 서버 검증 -> 관리자가 결과 확인 -> Concert 로 전송 */
 class StageJobFlowTest extends IntegrationTest {
 
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 13, 'I', 'H', 'D', 'R'};
@@ -40,13 +40,13 @@ class StageJobFlowTest extends IntegrationTest {
                 + "\",\"imageContentType\":\"image/png\",\"values\":" + SECTION + "}");
         STUB.ok("PUT", "/internal/admin/concerts/venues/7/sections", "{\"venueId\":7,\"floorId\":1,\"sectionId\":11,\"seatCount\":2}");
 
-        // ① 요청 — 바로 돌아오고 검증은 뒤에서 돕니다
+        // 1 요청 - 바로 돌아오고 검증은 뒤에서 돕니다
         MvcResult created = mvc.perform(as(stage, multipart("/api/studio/venues/7/stage-jobs")
                         .file(new MockMultipartFile("image", "floor.png", "image/png", PNG)).param("drawing", DRAWING)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.venueName").value("롤링홀")).andReturn();
         long jobId = result(created).get("id").asLong();
 
-        // ② GPU 서버가 검증 — 사진 · 그린 값 · 토큰이 그대로 갔는지
+        // 2 GPU 서버가 검증 - 사진, 그린 값, 토큰이 그대로 갔는지
         JsonNode job = awaitStatus(stage, jobId, "REVIEW");
         StubServer.Received gpu = STUB.received("POST", "/v1/stage/verify").get(0);
         assertThat(gpu.headers().get("x-gpu-token")).isEqualTo("gpu-test-token");
@@ -54,7 +54,7 @@ class StageJobFlowTest extends IntegrationTest {
         assertThat(gpu.bodyText()).contains("name=\"drawing\"").contains("\"section\":\"A\"").contains("name=\"venueId\"").contains("롤링홀")
                 .contains("filename=\"stage.png\"");
 
-        // ③ 관리자가 볼 것 — GPU 가 돌려준 값과 사진. 🔴 확인 전에는 Concert 에 아무것도 가지 않습니다
+        // 3 관리자가 볼 것 - GPU 가 돌려준 값과 사진. 확인 전에는 Concert 에 아무것도 가지 않습니다
         assertThat(job.get("values")).isEqualTo(objectMapper.readTree(SECTION));
         assertThat(job.get("drawing")).isEqualTo(objectMapper.readTree(DRAWING));
         assertThat(job.get("resultImage").asBoolean()).isTrue();
@@ -66,7 +66,7 @@ class StageJobFlowTest extends IntegrationTest {
                 .andReturn().getResponse().getContentAsByteArray()).isEqualTo(PNG);
         assertThat(STUB.received("PUT", "/internal/admin/concerts/venues/7/sections")).isEmpty();
 
-        // ④ 확인 → Concert 구역 저장 API 로 (iss=studio · aud=concert)
+        // 4 확인 -> Concert 구역 저장 API 로 (iss=studio, aud=concert)
         mvc.perform(as(stage, post("/api/studio/stage-jobs/" + jobId + "/confirm")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result[0].sectionId").value(11));
         StubServer.Received sent = STUB.received("PUT", "/internal/admin/concerts/venues/7/sections").get(0);
@@ -129,7 +129,7 @@ class StageJobFlowTest extends IntegrationTest {
         mvc.perform(get("/api/studio/venues/7/stage-jobs").cookie(stage.cookie()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.length()").value(0));   // 무대 작업은 남기지 않습니다
 
-        // 보낼 구역이 없으면 400 — Concert 에는 가지 않습니다
+        // 보낼 구역이 없으면 400 - Concert 에는 가지 않습니다
         mvc.perform(as(stage, put("/api/studio/venues/7/sections")).contentType(MediaType.APPLICATION_JSON).content("[]"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("STAGE_VALUES_INVALID"));
         assertThat(STUB.received("PUT", "/internal/admin/concerts/venues/7/sections")).hasSize(2);
@@ -146,20 +146,20 @@ class StageJobFlowTest extends IntegrationTest {
         Session stage = newAdmin("STAGE");
         STUB.ok("GET", "/api/concerts/venues/7", "{\"id\":7,\"name\":\"롤링홀\"}");
 
-        // 사진이 아닌 파일 — Content-Type 을 image/png 로 속여도 파일 앞부분으로 거릅니다
+        // 사진이 아닌 파일 - Content-Type 을 image/png 로 속여도 파일 앞부분으로 거릅니다
         mvc.perform(as(stage, multipart("/api/studio/venues/7/stage-jobs")
                         .file(new MockMultipartFile("image", "floor.png", "image/png", "<script>alert(1)</script>".getBytes())).param("drawing", DRAWING)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("STAGE_IMAGE_INVALID"));
         mvc.perform(as(stage, multipart("/api/studio/venues/7/stage-jobs")
                         .file(new MockMultipartFile("image", "floor.png", "image/png", PNG)).param("drawing", "not json")))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("STAGE_DRAWING_INVALID"));
-        // 없는 공연장 — Concert 의 404 가 그대로
+        // 없는 공연장 - Concert 의 404 가 그대로
         mvc.perform(as(stage, multipart("/api/studio/venues/999/stage-jobs")
                         .file(new MockMultipartFile("image", "floor.png", "image/png", PNG)).param("drawing", DRAWING)))
                 .andExpect(status().isNotFound());
         assertThat(STUB.received("POST", "/v1/stage/verify")).isEmpty();
 
-        // GPU 서버 오류 — 작업이 FAILED 로 닫히고 사유가 남습니다. Concert 로는 못 보냅니다
+        // GPU 서버 오류 - 작업이 FAILED 로 닫히고 사유가 남습니다. Concert 로는 못 보냅니다
         STUB.reply("POST", "/v1/stage/verify", 500, "{\"error\":\"cuda out of memory\"}");
         long jobId = result(mvc.perform(as(stage, multipart("/api/studio/venues/7/stage-jobs")
                 .file(new MockMultipartFile("image", "floor.png", "image/png", PNG)).param("drawing", DRAWING))).andReturn()).get("id").asLong();

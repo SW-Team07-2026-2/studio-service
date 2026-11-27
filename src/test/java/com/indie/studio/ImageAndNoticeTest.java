@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 11/18 — 이미지 올리기(업로드 주소) · 저장 전 이미지 확인 · 아티스트 · 앨범 이미지 / 트랙 태그 · 공연 변경 공지 */
+/** - 이미지 올리기(업로드 주소), 저장 전 이미지 확인, 아티스트, 앨범 이미지 / 트랙 태그, 공연 변경 공지 */
 class ImageAndNoticeTest extends IntegrationTest {
 
     @Test
@@ -69,7 +69,7 @@ class ImageAndNoticeTest extends IntegrationTest {
         assertThat(sentAlbum.at("/tracks/0/moods/0").asText()).isEqualTo("DREAMY");
     }
 
-    /** 11/26 라인업에 있는데 수집되지 않은 팀 — 굿즈 관리자가 Catalog 에 아티스트를 직접 등록 (이미지는 우리 버킷 · 같은 이름 409 는 그대로) */
+    /** 라인업에 있는데 수집되지 않은 팀 - 굿즈 관리자가 Catalog 에 아티스트를 직접 등록 (이미지는 우리 버킷, 같은 이름 409 는 그대로) */
     @Test
     void goodsAdminCreatesArtistMissingFromCrawl() throws Exception {
         Session goods = newAdmin("GOODS");
