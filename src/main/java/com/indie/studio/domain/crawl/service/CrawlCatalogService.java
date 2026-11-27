@@ -32,16 +32,8 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 크롤링 아티스트 · 앨범 후보 — 받기(크롤러) · 목록 · 승인 · 적재 안 함(상품 관리자). 11/17 결정: Catalog 로 바로 보내지 않고 승인한 것만.
- * <pre>
- * 받기   (type, source, external_id) 가 열쇠. 처음 → PENDING · 같은 source_hash → UNCHANGED · REJECTED 는 그대로(REVIEWED)
- *        승인된 것이 다른 값으로 오면 다시 PENDING (변경도 승인을 거침 — 새 굿즈 · 트랙 · 피지컬)
- * 승인   그 한 건을 Catalog /internal/admin/catalog/ingest/{artists|albums} 로. 앨범은 artist_ref → 승인된 아티스트의 catalog_id
- *        피지컬 앨범 · 굿즈 옵션 가격이 0 이하면 거절 · null 이면 Catalog 가 저장된 판매가를 그대로 두고 새 옵션이면 거절 (11/18: 판매가는 관리자 값)
- *        이미지 칸은 우리 버킷에 올라간 주소만 (ImageGuard · null 이면 Catalog 가 저장된 이미지를 그대로 둠) · 출처(evidence)는 빼고 보냄
- *        Catalog 가 항목을 거절(FAILED)하거나 400 이면 PENDING 그대로 + last_error
- * </pre>
- * Catalog 호출은 트랜잭션 밖 — 결과를 받은 뒤 상태만 바꿉니다. 두 관리자가 동시에 승인해도 Catalog 적재가 (source, external_id) 로 멱등이라 같은 결과입니다.
+ * 수집한 아티스트와 앨범 후보를 저장하고 관리자 승인 후 Catalog에 적재합니다.
+ * 해시가 같은 후보는 유지하고 승인 후 값이 바뀌면 다시 검수합니다. 앨범은 승인된 아티스트 ID를 사용합니다.
  */
 @Service
 public class CrawlCatalogService {
@@ -63,6 +55,12 @@ public class CrawlCatalogService {
         this.clock = clock;
     }
 
+    /**
+     * 아티스트와 앨범 후보 수집 항목을 저장하고 항목별 결과를 반환합니다.
+     *
+     * @param type 수집 후보 종류
+     * @param items 수집 후보 항목 목록
+     */
     @Transactional
     public List<ItemResult> receive(Type type, List<ObjectNode> items) {
         items.forEach(item -> checkKeys(type, item));
@@ -89,18 +87,37 @@ public class CrawlCatalogService {
         return results;
     }
 
+    /**
+     * 아티스트와 앨범 후보 목록을 조회합니다.
+     *
+     * @param status 조회할 후보 상태
+     * @param type 수집 후보 종류
+     * @param beforeId 이 ID보다 이전 항목부터 조회
+     * @param size 페이지당 조회 개수
+     */
     @Transactional(readOnly = true)
     public List<CatalogCandidateView> list(Status status, Type type, Long beforeId, int size) {
         return candidates.page(status, type, beforeId, PageRequest.of(0, size)).stream().map(this::view).toList();
     }
 
+    /**
+     * 아티스트와 앨범 후보 검수 완료 후보를 조회합니다.
+     *
+     * @param type 수집 후보 종류
+     */
     @Transactional(readOnly = true)
     public List<ReviewedKey> reviewed(Type type) {
         return candidates.reviewed(type, Status.PENDING).stream()
                 .map(r -> new ReviewedKey(r.getSource(), r.getExternalId(), r.getStatus().name())).toList();
     }
 
-    /** edited 가 있으면 관리자가 고친 항목으로 (받은 항목과 같은 모양) — 저장해 두고 그 값으로 보냅니다 */
+    /**
+     * edited 가 있으면 관리자가 고친 항목으로 (받은 항목과 같은 모양) - 저장해 두고 그 값으로 보냅니다
+     *
+     * @param id 아티스트와 앨범 후보 ID
+     * @param edited 관리자가 검수하거나 수정한 값
+     * @param admin 요청한 관리자와 권한 정보
+     */
     public CatalogCandidateView approve(long id, ObjectNode edited, AdminPrincipal admin) {
         CrawlCatalogEntity candidate = pending(id);
         if (edited != null && !edited.isEmpty()) {
@@ -113,8 +130,8 @@ public class CrawlCatalogService {
         requirePrices(item.path(candidate.getType() == Type.ALBUM ? "physical_albums" : "goods"));
         images.checkCatalogItem(item);
         if (candidate.getType() == Type.ALBUM) item = withArtistId(item);
-        item.remove("evidence");   // 출처는 관리자 확인용 — Catalog 로는 보내지 않음
-        // 11/27 굿즈 · 판본 상세 이미지는 크롤러가 상세 설명을 쓸 때 읽은 자료 (관리자 확인용) — Catalog 로는 보내지 않음 (상품은 대표 이미지만)
+        item.remove("evidence");   // 출처는 관리자 확인용 - Catalog 로는 보내지 않음
+        // 굿즈, 판본 상세 이미지는 크롤러가 상세 설명을 쓸 때 읽은 자료 (관리자 확인용) - Catalog 로는 보내지 않음 (상품은 대표 이미지만)
         for (String products : List.of("goods", "physical_albums")) {
             item.path(products).forEach(p -> { if (p instanceof ObjectNode node) node.remove("detail_image_urls"); });
         }
@@ -142,7 +159,12 @@ public class CrawlCatalogService {
         return view(candidates.save(candidate));
     }
 
-    /** 아티스트부터 (앨범이 같은 묶음의 아티스트를 가리킬 수 있음) · 하나가 실패해도 나머지는 계속 */
+    /**
+     * 아티스트부터 (앨범이 같은 묶음의 아티스트를 가리킬 수 있음), 하나가 실패해도 나머지는 계속
+     *
+     * @param ids 승인할 수집 후보 ID 목록
+     * @param admin 요청한 관리자와 권한 정보
+     */
     public List<ApproveResult> approveMany(List<Long> ids, AdminPrincipal admin) {
         List<CrawlCatalogEntity> found = candidates.findAllById(ids.stream().distinct().toList()).stream()
                 .sorted(Comparator.comparing(CrawlCatalogEntity::getType).thenComparing(CrawlCatalogEntity::getId)).toList();
@@ -160,6 +182,12 @@ public class CrawlCatalogService {
         return results;
     }
 
+    /**
+     * 아티스트와 앨범 후보 후보를 적재하지 않도록 처리합니다.
+     *
+     * @param id 아티스트와 앨범 후보 ID
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @Transactional
     public CatalogCandidateView reject(long id, AdminPrincipal admin) {
         CrawlCatalogEntity candidate = pending(id);
@@ -182,8 +210,8 @@ public class CrawlCatalogService {
     }
 
     /**
-     * 판매가는 관리자가 넣는 값 (11/18) — 크롤러는 null 로 보냅니다. 넣은 값이 0 이하면 거절 (0원 상품 방지).
-     * null 은 Catalog 가 저장된 판매가를 그대로 두고, 새 옵션이면 Catalog 가 거절합니다 (사유는 last_error · 여러 건 승인도 같음).
+     * 판매가는 관리자가 넣는 값 - 크롤러는 null 로 보냅니다. 넣은 값이 0 이하면 거절 (0원 상품 방지).
+     * null 은 Catalog 가 저장된 판매가를 그대로 두고, 새 옵션이면 Catalog 가 거절합니다 (사유는 last_error, 여러 건 승인도 같음).
      */
     private static void requirePrices(JsonNode products) {
         for (JsonNode product : products) {
@@ -194,7 +222,7 @@ public class CrawlCatalogService {
         }
     }
 
-    /** 열쇠만 Studio 가 봅니다 — 나머지 값은 승인할 때 Catalog 가 검사 */
+    /** 열쇠만 Studio 가 봅니다 - 나머지 값은 승인할 때 Catalog 가 검사 */
     private static void checkKeys(Type type, ObjectNode item) {
         if (!text(item.get("source"), 32) || !text(item.get("external_id"), 128)) {
             throw new GeneralException(CommonErrorCode.INVALID_REQUEST, "items[].source(32자 이하) · external_id(128자 이하)가 필요합니다");

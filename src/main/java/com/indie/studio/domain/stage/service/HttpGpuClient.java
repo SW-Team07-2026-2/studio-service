@@ -18,16 +18,8 @@ import java.time.Duration;
 import java.util.Base64;
 
 /**
- * GPU 서버 호출 — KT 의 Studio 에서 WireGuard 로 직접 보냅니다 (S3 를 거치지 않음 · 11/13 결정).
- * <pre>
- * POST {app.gpu.base-url}/v1/stage/verify   multipart/form-data   헤더 X-Gpu-Token (시크릿 gpu.token)
- *   image      도면 사진 (PNG · JPEG · WEBP)
- *   drawing    관리자가 그린 값 (JSON 문자열)
- *   venueId · venueName
- * 200 { "image": "<base64>", "imageContentType": "image/png", "values": { … } }
- *   image 는 없어도 됩니다. values 는 Concert 의 구역 저장 본문(SectionLayoutRequest) 하나 또는 그 배열입니다.
- * </pre>
- * 분석이 오래 걸려도 됩니다 — 백그라운드 스레드에서 부르고 제한 시간은 app.gpu.read-timeout-ms (3분).
+ * Studio -> WireGuard -> GPU 서버 POST /v1/stage/verify.
+ * 인증 헤더와 multipart 이미지, 도면 JSON을 보내고 검증된 이미지와 배치 값을 반환받습니다.
  */
 @Component
 public class HttpGpuClient implements GpuClient {

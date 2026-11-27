@@ -23,7 +23,7 @@ import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
 
-/** 공개 이미지 저장소 — app.image.bucket 이 있으면 S3(로컬은 MinIO), 없으면 막아 둔 저장소 */
+/** 공개 이미지 저장소 - app.image.bucket 이 있으면 S3(로컬은 MinIO), 없으면 막아 둔 저장소 */
 @Configuration
 public class ImageConfig {
 

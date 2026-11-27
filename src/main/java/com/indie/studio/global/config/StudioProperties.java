@@ -22,7 +22,7 @@ public record StudioProperties(Session session, Login login, InternalToken inter
 
     public record Cors(List<String> allowedOrigins) {}
 
-    /** 공개 이미지 저장소 (11/18) — bucket 이 비면 업로드 · 이미지 저장을 막습니다. endpoint 는 로컬 MinIO 만 */
+    /** 공개 이미지 저장소 - bucket 이 비면 업로드, 이미지 저장을 막습니다. endpoint 는 로컬 MinIO 만 */
     public record Image(String bucket, String region, String publicBaseUrl, String endpoint, long maxBytes, int uploadTtlSeconds,
                         List<String> importHosts) {}
 }

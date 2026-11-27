@@ -19,14 +19,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 크롤러가 부르는 곳 (11/17 결정). 인증은 CrawlerTokenFilter. 크롤러가 보낸 것은 전부 관리자 승인을 거쳐 사용자 서비스로 갑니다.
- * <pre>
- * 공연                       후보로 받아 두고 공연 관리자가 확인한 뒤 등록 (crawl_concert · CrawlConcertController)
- * 아티스트 · 앨범 · LP/CD · 굿즈  후보로 받아 두고 상품 관리자가 승인한 뒤 Catalog 관리자 적재 (crawl_catalog · CrawlCatalogController)
- * diff                       조회라 그대로 Catalog 로
- * reviewed                   관리자가 처리한 후보의 키 · 상태 (크롤러가 거절한 것을 다시 찾지 않게 · 11/24)
- * </pre>
- * 응답은 항목별 CREATED · UPDATED · UNCHANGED · REVIEWED (REVIEWED = 관리자가 적재하지 않기로 했거나 등록을 끝낸 후보라 바꾸지 않음).
+ * 크롤러 -> Studio 내부 수집 API -> 후보 저장과 관리자 검수.
+ * 해시 비교는 Catalog에 전달하고 검수 완료 내역은 크롤러에 반환합니다.
  */
 @RestController
 public class CrawlIntakeController {
@@ -41,33 +35,48 @@ public class CrawlIntakeController {
         this.crawlCatalogService = crawlCatalogService;
     }
 
-    /** { items: [{ source, external_id, source_hash, concert: {...} }] } 최대 100건 */
+    /**
+     * 공연 후보 묶음을 저장합니다.
+     *
+     * @param batch 공연 후보 묶음
+     */
     @PostMapping("/internal/crawl/concerts")
     public ApiResponse<BatchResult> concerts(@Valid @RequestBody ConcertBatch batch) {
         return ApiResponse.onSuccess(new BatchResult(crawlConcertService.receive(batch.items())));
     }
 
-    /** { items: [ArtistUpsert] } 최대 500건 — 굿즈는 아티스트에 담아 보냅니다 */
+    /**
+     * 아티스트 후보 묶음을 저장합니다.
+     *
+     * @param batch 아티스트 또는 앨범 후보 묶음
+     */
     @PostMapping("/internal/crawl/catalog/artists")
     public ApiResponse<BatchResult> artists(@Valid @RequestBody CatalogBatch batch) {
         return ApiResponse.onSuccess(new BatchResult(crawlCatalogService.receive(Type.ARTIST, batch.items())));
     }
 
-    /** { items: [AlbumUpsert — artist_id 대신 artist_ref: { source, external_id }] } 최대 500건 — 트랙 · LP/CD 는 앨범에 담아 보냅니다 */
+    /**
+     * 앨범 후보 묶음을 저장합니다.
+     *
+     * @param batch 아티스트 또는 앨범 후보 묶음
+     */
     @PostMapping("/internal/crawl/catalog/albums")
     public ApiResponse<BatchResult> albums(@Valid @RequestBody CatalogBatch batch) {
         return ApiResponse.onSuccess(new BatchResult(crawlCatalogService.receive(Type.ALBUM, batch.items())));
     }
 
-    /** → { concerts, artists, albums: [{ source, external_id, status }] } — 관리자가 처리한 후보만 (REJECTED · APPROVED · 공연은 CHANGED 도).
-     *  크롤러가 실행 처음에 한 번 불러, 거절한 것은 다시 찾지 않고 등록한 공연은 예매 오픈을 찾지 않음 (11/24 — Gemini · 검색 크레딧 아끼기) */
+    /** 검수 완료 후보의 식별자와 상태를 반환합니다. */
     @GetMapping("/internal/crawl/reviewed")
     public ApiResponse<Reviewed> reviewed() {
         return ApiResponse.onSuccess(new Reviewed(crawlConcertService.reviewed(),
                 crawlCatalogService.reviewed(Type.ARTIST), crawlCatalogService.reviewed(Type.ALBUM)));
     }
 
-    /** { source, type, items: [{ external_id, source_hash }] } → { new, changed, unchanged } — Catalog 에 이미 들어간 것과 비교 */
+    /**
+     * Catalog에 수집 해시 비교를 요청합니다.
+     *
+     * @param body 대상 서비스에 전달할 요청 본문
+     */
     @PostMapping("/internal/crawl/catalog/diff")
     public ApiResponse<JsonNode> diff(@RequestBody JsonNode body) {
         return ApiResponse.onSuccess(serviceClient.sendAsCrawler(Target.CATALOG, HttpMethod.POST, "/internal/admin/catalog/ingest/diff", body));

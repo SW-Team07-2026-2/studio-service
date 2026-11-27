@@ -13,7 +13,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
-/** 작업 기록 — 누가 · 언제 · 무엇을 불렀고 결과가 어땠나. 🔴 검색어 · 요청 본문 · 개인정보 값은 남기지 않습니다 (경로의 id 까지만) */
+/** 작업 기록 - 누가, 언제, 무엇을 불렀고 결과가 어땠나. 검색어, 요청 본문, 개인정보 값은 남기지 않습니다 (경로의 id 까지만) */
 @Entity
 @Table(name = "audit_log")
 public class AuditLogEntity {

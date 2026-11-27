@@ -8,10 +8,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.util.List;
 
-/**
- * 로그인 인증 코드 메일 — 계정에 등록된 주소마다 한 통씩 (받는 사람끼리 주소가 보이지 않게), SMTP 연결은 한 번.
- * 보내는 주소는 app.login.mail-from (noreply). SMTP 는 spring.mail.* — 운영은 Gmail(앱 비밀번호 · 587 STARTTLS).
- */
+/** Studio -> SMTP -> 관리자 계정에 등록된 주소로 로그인 OTP를 개별 발송합니다. */
 @Component
 public class OtpMailer {
 
@@ -23,7 +20,14 @@ public class OtpMailer {
         this.from = props.login().mailFrom();
     }
 
-    /** 못 보내면 MailException — 부르는 쪽(AuthService.login)이 2단계 대기를 지웁니다 */
+    /**
+     * 못 보내면 MailException - 부르는 쪽(AuthService.login)이 2단계 대기를 지웁니다
+     *
+     * @param loginId 관리자 로그인 ID
+     * @param to 인증 코드를 받을 이메일 주소 목록
+     * @param code 입력한 메일 인증 코드
+     * @param ttl 인증 코드 유효 시간
+     */
     public void send(String loginId, List<String> to, String code, Duration ttl) {
         String text = """
                 indig 관리자 화면 로그인 인증 코드입니다.

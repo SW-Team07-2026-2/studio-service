@@ -22,13 +22,8 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 관리자 로그인 — 1차 아이디 · 비밀번호(MySQL · bcrypt) → 2차 메일 인증 코드 → 세션. 2단계 대기와 세션은 Redis 에 둡니다 (만료되면 Redis 가 지움).
- * <pre>
- * login      비밀번호가 맞으면 2단계 대기(5분 · 1회용)를 만들고, 계정에 등록된 메일로 6자리 코드를 보냅니다. 대기에는 코드의 해시만 둡니다.
- * verifyOtp  코드가 맞으면 세션을 만듭니다. 대기는 한 번 쓰면 지워지고, 5번 틀리면 버립니다 (코드는 로그인마다 새로 만듭니다).
- * authenticate  요청마다 — 세션(Redis)과 계정의 지금 상태(MySQL)를 봅니다. 그래서 역할 변경 · 비활성화가 즉시 반영됩니다.
- * </pre>
- * 실패 횟수는 예외를 던지기 전에 저장합니다 (메서드에 트랜잭션을 걸지 않음 — 걸면 롤백으로 횟수가 사라집니다).
+ * 관리자 비밀번호와 메일 OTP를 검증하고 Redis 세션을 발급합니다.
+ * 요청마다 세션과 현재 계정 상태를 확인해 권한 변경과 비활성화를 반영합니다.
  */
 @Service
 public class AuthService {
@@ -58,11 +53,18 @@ public class AuthService {
         this.dummyHash = passwordEncoder.encode(Tokens.random());   // 없는 아이디도 bcrypt 를 한 번 돌려 응답 시간으로 아이디 유무를 못 가리게
     }
 
-    /** sentTo — 코드를 보낸 주소 (가림 처리) */
+    /** sentTo - 코드를 보낸 주소 (가림 처리) */
     public record LoginResult(String challengeToken, List<String> sentTo) {}
 
     public record SessionIssued(String sessionToken, AdminPrincipal admin) {}
 
+    /**
+     * 아이디와 비밀번호를 확인하고 메일 OTP 인증을 시작합니다.
+     *
+     * @param loginId 관리자 로그인 ID
+     * @param password 관리자 비밀번호
+     * @param clientIp 로그인 요청 IP
+     */
     public LoginResult login(String loginId, String password, String clientIp) {
         Instant now = clock.instant();
         AdminAccountEntity account = accounts.findByLoginId(loginId).orElse(null);
@@ -91,6 +93,13 @@ public class AuthService {
         return new LoginResult(token, account.getOtpEmails().stream().map(AuthService::mask).toList());
     }
 
+    /**
+     * 메일 인증 코드를 검증하고 관리자 세션을 발급합니다.
+     *
+     * @param challengeToken OTP 대기 토큰
+     * @param code 입력한 메일 인증 코드
+     * @param clientIp 로그인 요청 IP
+     */
     public SessionIssued verifyOtp(String challengeToken, String code, String clientIp) {
         Instant now = clock.instant();
         String challengeHash = challengeToken == null ? null : Tokens.sha256(challengeToken);
@@ -109,7 +118,7 @@ public class AuthService {
             fail(account, now);
             throw new GeneralException(AuthErrorCode.OTP_INVALID);
         }
-        if (!challenges.consume(challengeHash)) throw new GeneralException(AuthErrorCode.OTP_CHALLENGE_EXPIRED);   // 1회용 — 먼저 지운 쪽만
+        if (!challenges.consume(challengeHash)) throw new GeneralException(AuthErrorCode.OTP_CHALLENGE_EXPIRED);   // 1회용 - 먼저 지운 쪽만
 
         account.loginSucceeded(now);
         accounts.save(account);
@@ -122,7 +131,11 @@ public class AuthService {
         return new SessionIssued(token, principal(account, tokenHash, csrfToken));
     }
 
-    /** 세션 쿠키 → 관리자. 없거나 · 만료됐거나 · 계정이 꺼졌으면 null */
+    /**
+     * 세션 쿠키 -> 관리자. 없거나, 만료됐거나, 계정이 꺼졌으면 null
+     *
+     * @param sessionToken 관리자 세션 토큰
+     */
     public AdminPrincipal authenticate(String sessionToken) {
         if (sessionToken == null || sessionToken.isBlank()) return null;
         Instant now = clock.instant();
@@ -140,11 +153,22 @@ public class AuthService {
         return principal(account, tokenHash, session.csrfToken());
     }
 
+    /**
+     * 관리자 세션을 폐기합니다.
+     *
+     * @param admin 요청한 관리자와 권한 정보
+     */
     public void logout(AdminPrincipal admin) {
         sessions.revoke(admin.id(), admin.sessionId());
     }
 
-    /** 내 비밀번호 변경 — 다른 기기의 세션은 끊고 지금 세션만 남깁니다 */
+    /**
+     * 내 비밀번호 변경 - 다른 기기의 세션은 끊고 지금 세션만 남깁니다
+     *
+     * @param admin 요청한 관리자와 권한 정보
+     * @param currentPassword 현재 관리자 비밀번호
+     * @param newPassword 변경할 관리자 비밀번호
+     */
     public void changePassword(AdminPrincipal admin, String currentPassword, String newPassword) {
         AdminAccountEntity account = accounts.findById(admin.id()).orElseThrow();
         if (!passwordEncoder.matches(currentPassword, account.getPasswordHash())) {
@@ -163,7 +187,7 @@ public class AuthService {
         if (account.isLocked(now)) log.warn("admin_locked adminId={} until={}", account.getId(), account.getLockedUntil());
     }
 
-    /** 대기에 두는 값 — 쿠키 값(Redis 에 없음)을 섞어, Redis 만 봐서는 6자리를 되짚을 수 없게 */
+    /** 대기에 두는 값 - 쿠키 값(Redis 에 없음)을 섞어, Redis 만 봐서는 6자리를 되짚을 수 없게 */
     private static String codeHash(String challengeToken, String code) {
         return Tokens.sha256(challengeToken + ":" + code);
     }

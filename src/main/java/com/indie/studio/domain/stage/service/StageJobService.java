@@ -30,14 +30,8 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
- * 무대 그리기 — 관리자가 그린 도면을 GPU 서버가 검증하고, 관리자가 결과를 보고 Concert 로 보냅니다.
- * <pre>
- * ① create   사진 + 그린 값을 DB 에 저장(PENDING)하고 바로 응답합니다. 검증은 백그라운드로 넘깁니다
- * ② analyze  GPU 서버 호출(ANALYZING) → 돌려준 사진 · 값을 저장(REVIEW). 실패하면 FAILED + 사유
- * ③ 화면이 작업을 다시 조회(폴링)해 결과 사진과 값을 보여 주고, 관리자가 확인 · 수정합니다
- * ④ confirm  확인한 값을 Concert 내부 API(구역 저장)로 보냅니다(SENT). 🔴 관리자가 확인하기 전에는 Concert 에 아무것도 가지 않습니다
- * </pre>
- * 사진은 S3 를 거치지 않고 Studio DB 에 둡니다 (11/13 결정 — 느려도 됨).
+ * 도면 이미지와 값을 저장하고 백그라운드에서 GPU 검증을 요청합니다.
+ * 관리자가 결과를 확인한 뒤에만 Concert에 배치를 전달합니다. 작업 이미지는 Studio DB에 보관합니다.
  */
 @Service
 public class StageJobService {
@@ -66,6 +60,14 @@ public class StageJobService {
         this.clock = clock;
     }
 
+    /**
+     * 무대 작업 정보를 등록합니다.
+     *
+     * @param venueId 공연장 ID
+     * @param image 도면 이미지
+     * @param drawing 관리자가 그린 도면 JSON
+     * @param admin 요청한 관리자와 권한 정보
+     */
     public StageJobView create(long venueId, byte[] image, String drawing, AdminPrincipal admin) {
         String contentType = image.length > gpuProps.maxImageBytes() ? null : ImageType.detect(image);
         if (contentType == null) throw new GeneralException(StageErrorCode.STAGE_IMAGE_INVALID);
@@ -81,7 +83,7 @@ public class StageJobService {
         return view(job, true);
     }
 
-    /** 백그라운드 — GPU 서버가 느려도 요청 스레드와 DB 커넥션을 붙잡지 않습니다 */
+    /** 백그라운드 - GPU 서버가 느려도 요청 스레드와 DB 커넥션을 붙잡지 않습니다 */
     void analyze(long jobId) {
         StageJobEntity job = jobs.findById(jobId).orElse(null);
         if (job == null || job.getStatus() != Status.PENDING) return;
@@ -106,7 +108,7 @@ public class StageJobService {
         }
     }
 
-    /** 서버가 꺼졌다 켜지면 돌던 검증은 사라집니다 — 멈춘 작업을 FAILED 로 닫아 화면이 계속 기다리지 않게 합니다 */
+    /** 서버가 꺼졌다 켜지면 돌던 검증은 사라집니다 - 멈춘 작업을 FAILED 로 닫아 화면이 계속 기다리지 않게 합니다 */
     @EventListener(ApplicationReadyEvent.class)
     public void closeInterrupted() {
         for (StageJobEntity job : jobs.findByStatusIn(List.of(Status.PENDING, Status.ANALYZING))) {
@@ -115,14 +117,30 @@ public class StageJobService {
         }
     }
 
+    /**
+     * 무대 작업 상세를 조회합니다.
+     *
+     * @param jobId 도면 검증 작업 ID
+     */
     public StageJobView get(long jobId) {
         return view(find(jobId), true);
     }
 
+    /**
+     * 무대 작업 목록을 조회합니다.
+     *
+     * @param venueId 공연장 ID
+     */
     public List<StageJobView> list(long venueId) {
         return jobs.findTop50ByVenueIdOrderByIdDesc(venueId).stream().map(j -> view(j, false)).toList();
     }
 
+    /**
+     * 무대 작업 작업 이미지를 조회합니다.
+     *
+     * @param jobId 도면 검증 작업 ID
+     * @param kind 조회할 작업 이미지 종류
+     */
     public StageJobImageEntity image(long jobId, Kind kind) {
         find(jobId);
         return images.findByJobIdAndKind(jobId, kind).orElseThrow(() -> new GeneralException(StageErrorCode.STAGE_IMAGE_NOT_FOUND));
@@ -130,8 +148,12 @@ public class StageJobService {
 
     /**
      * 관리자가 확인한 값을 Concert 로 보냅니다. edited 가 있으면 그 값(관리자가 고친 것)을, 없으면 GPU 가 돌려준 값을 그대로.
-     * 값은 구역 하나(객체) · 구역 배열 · { sections: [...] } 모두 받습니다. 구역마다 PUT 한 번입니다.
+     * 값은 구역 하나(객체), 구역 배열, { sections: [...] } 모두 받습니다. 구역마다 PUT 한 번입니다.
      * 중간에 실패하면 작업은 REVIEW 로 남고, 다시 보내면 Concert 가 같은 구역을 덮어씁니다.
+     *
+     * @param jobId 도면 검증 작업 ID
+     * @param edited 관리자가 검수하거나 수정한 값
+     * @param admin 요청한 관리자와 권한 정보
      */
     public JsonNode confirm(long jobId, JsonNode edited, AdminPrincipal admin) {
         StageJobEntity job = find(jobId);
@@ -144,14 +166,20 @@ public class StageJobService {
         return saved;
     }
 
-    /** GPU 검증 없이 관리자가 넣은 구역 값을 바로 Concert 로 보냅니다 (✏️ 11/18). 작업(stage_job)은 만들지 않습니다 */
+    /**
+     * GPU 검증 없이 관리자가 넣은 구역 값을 바로 Concert 로 보냅니다 ( ). 작업(stage_job)은 만들지 않습니다
+     *
+     * @param venueId 공연장 ID
+     * @param values Concert에 저장할 구역 배치 값
+     * @param admin 요청한 관리자와 권한 정보
+     */
     public JsonNode saveSections(long venueId, JsonNode values, AdminPrincipal admin) {
         ArrayNode saved = sendSections(venueId, values, admin);
         log.info("stage_sections_saved venueId={} sections={} adminId={}", venueId, saved.size(), admin.id());
         return saved;
     }
 
-    /** 구역마다 PUT 한 번 — 중간에 실패하면 Concert 의 오류가 그대로 나가고, 다시 보내면 Concert 가 같은 구역을 덮어씁니다 */
+    /** 구역마다 PUT 한 번 - 중간에 실패하면 Concert 의 오류가 그대로 나가고, 다시 보내면 Concert 가 같은 구역을 덮어씁니다 */
     private ArrayNode sendSections(long venueId, JsonNode values, AdminPrincipal admin) {
         List<JsonNode> sections = sections(values);
         if (sections.isEmpty()) throw new GeneralException(StageErrorCode.STAGE_VALUES_INVALID);

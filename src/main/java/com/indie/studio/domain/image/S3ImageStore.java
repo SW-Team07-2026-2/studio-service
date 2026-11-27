@@ -31,14 +31,14 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * S3 (운영) · MinIO (로컬) 이미지 저장소. 공개 주소 = app.image.public-base-url + "/" + 키 (CloudFront img.indig.co.kr → 버킷).
- * 키: {종류}/{yyyy}/{MM}/{uuid}.{jpg|png|webp|gif} — Studio 가 정하고 화면은 고를 수 없습니다.
- * 업로드 주소는 Content-Type · 크기까지 서명해서, 받은 값과 다른 파일은 S3 가 거절합니다.
+ * S3 (운영), MinIO (로컬) 이미지 저장소. 공개 주소 = app.image.public-base-url + "/" + 키 (CloudFront img.indig.co.kr -> 버킷).
+ * 키: {종류}/{yyyy}/{MM}/{uuid}.{jpg|png|webp|gif} - Studio 가 정하고 화면은 고를 수 없습니다.
+ * 업로드 주소는 Content-Type, 크기까지 서명해서, 받은 값과 다른 파일은 S3 가 거절합니다.
  */
 public class S3ImageStore implements ImageStore {
 
     private static final Logger log = LoggerFactory.getLogger(S3ImageStore.class);
-    /** 종류 → 확장자. 저장할 때 다시 확인합니다 */
+    /** 종류 -> 확장자. 저장할 때 다시 확인합니다 */
     private static final Map<String, String> TYPES = Map.of("image/jpeg", "jpg", "image/png", "png", "image/webp", "webp", "image/gif", "gif");
     private static final Pattern KEY = Pattern.compile(
             "^(artist|album|goods|physical|poster|concert)/\\d{4}/\\d{2}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|png|webp|gif)$");
@@ -105,7 +105,7 @@ public class S3ImageStore implements ImageStore {
         }
     }
 
-    /** 리다이렉트는 따라가지 않습니다 (허용한 곳 밖으로 나가지 않게) · 크기 제한 · 내용(앞 바이트)으로 종류 확인 */
+    /** 리다이렉트는 따라가지 않습니다 (허용한 곳 밖으로 나가지 않게), 크기 제한, 내용(앞 바이트)으로 종류 확인 */
     @Override
     public String importFrom(String url, ImageKind kind) {
         if (!importable(url)) throw new GeneralException(ImageErrorCode.IMAGE_URL_NOT_ALLOWED);
@@ -154,7 +154,7 @@ public class S3ImageStore implements ImageStore {
         return ext;
     }
 
-    /** 앞 바이트로 이미지 종류 — 응답 헤더의 Content-Type 은 믿지 않습니다 */
+    /** 앞 바이트로 이미지 종류 - 응답 헤더의 Content-Type 은 믿지 않습니다 */
     static String sniff(byte[] b) {
         if (starts(b, 0xFF, 0xD8, 0xFF)) return "image/jpeg";
         if (starts(b, 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A)) return "image/png";
