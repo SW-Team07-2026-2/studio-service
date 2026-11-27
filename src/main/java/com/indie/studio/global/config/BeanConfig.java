@@ -47,7 +47,7 @@ public class BeanConfig {
         return new BCryptPasswordEncoder(props.login().bcryptStrength());
     }
 
-    /** 무대 검증 작업 — GPU 서버는 한 번에 하나씩만 받습니다. 요청 스레드를 붙잡지 않으려고 따로 돌립니다 */
+    /** 무대 검증 작업 - GPU 서버는 한 번에 하나씩만 받습니다. 요청 스레드를 붙잡지 않으려고 따로 돌립니다 */
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService gpuExecutor() {
         return Executors.newSingleThreadExecutor(r -> {

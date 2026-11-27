@@ -16,10 +16,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
-/**
- * 나가는 X-Internal-Token (HS256 · 공유 시크릿) — {iss: studio, aud: <대상 서비스>, exp: now+300}. 다른 서비스와 같은 규약입니다.
- * 매 호출마다 새로 만듭니다 (캐시하지 않음).
- */
+/** Studio -> 대상 서비스 호출에 사용할 HS256 내부 토큰을 요청마다 발급합니다. */
 @Component
 public class InternalTokenIssuer {
 
@@ -34,6 +31,11 @@ public class InternalTokenIssuer {
         this.clock = clock;
     }
 
+    /**
+     * 대상 서비스 호출용 HS256 내부 토큰을 발급합니다.
+     *
+     * @param audience 내부 토큰을 받을 서비스
+     */
     public String issue(String audience) {
         Instant now = clock.instant();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()

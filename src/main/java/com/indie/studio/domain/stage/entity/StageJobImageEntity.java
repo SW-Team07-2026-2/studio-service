@@ -11,12 +11,12 @@ import jakarta.persistence.Table;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** 도면 사진 — S3 대신 DB 에 둡니다. 작업 목록 · 상태 조회에 딸려 오지 않게 따로 뒀습니다 */
+/** 도면 사진 - S3 대신 DB 에 둡니다. 작업 목록, 상태 조회에 딸려 오지 않게 따로 뒀습니다 */
 @Entity
 @Table(name = "stage_job_image")
 public class StageJobImageEntity {
 
-    /** ORIGINAL = 관리자가 올린 사진 · RESULT = GPU 서버가 돌려준 사진 */
+    /** ORIGINAL = 관리자가 올린 사진, RESULT = GPU 서버가 돌려준 사진 */
     public enum Kind { ORIGINAL, RESULT }
 
     @Id

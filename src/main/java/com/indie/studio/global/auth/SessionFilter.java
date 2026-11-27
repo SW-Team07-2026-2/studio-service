@@ -22,11 +22,11 @@ import java.util.Set;
 
 /**
  * /api/studio/** 는 로그인(1차 + OTP)을 마친 세션만 지나갑니다. 로그인 두 경로만 예외입니다.
- * 🔴 라우팅보다 앞에서 막습니다 — 로그인하지 않은 사람에게는 있는 경로든 없는 경로든 똑같이 401 이라 어떤 API 가 있는지 알 수 없습니다.
+ * 라우팅보다 앞에서 막습니다 - 로그인하지 않은 사람에게는 있는 경로든 없는 경로든 똑같이 401 이라 어떤 API 가 있는지 알 수 없습니다.
  * 역할별 권한은 그다음 PermissionInterceptor 가 봅니다.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 20)   // CorrelationIdFilter(+0) · CorsFilter(+5) 다음
+@Order(Ordered.HIGHEST_PRECEDENCE + 20)   // CorrelationIdFilter(+0), CorsFilter(+5) 다음
 public class SessionFilter extends OncePerRequestFilter {
 
     public static final Set<String> PUBLIC_PATHS = Set.of("/api/studio/auth/login", "/api/studio/auth/otp");

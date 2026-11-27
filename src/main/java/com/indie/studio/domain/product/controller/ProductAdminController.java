@@ -21,10 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 굿즈 관리자 — 굿즈와 피지컬 앨범(LP · CD · 카세트). 상품의 주인은 AWS 의 Catalog 입니다 (catalog v2: product → product_option → stock).
- * 조회는 Catalog 의 공개 조회를 그대로 쓰고, 등록 · 수정 · 재고는 Catalog 내부 관리자 API 로 보냅니다.
- */
+/** 상품 관리자 화면 -> Studio -> Catalog 상품, 아티스트, 앨범과 재고 API. 본문 검증은 Catalog가 수행합니다. */
 @RestController
 public class ProductAdminController {
 
@@ -36,7 +33,12 @@ public class ProductAdminController {
         this.images = images;
     }
 
-    /** ?artistId=&category=&page=&size= */
+    /**
+     * Catalog에서 굿즈를 조회합니다.
+     *
+     * @param query 대상 서비스에 전달할 조회 조건
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/products/goods")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> goods(@RequestParam MultiValueMap<String, String> query,
@@ -44,7 +46,12 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/goods", query, admin));
     }
 
-    /** ?format=LP|CD|CASSETTE&from=&to=&page=&size= */
+    /**
+     * Catalog에서 피지컬 앨범을 조회합니다.
+     *
+     * @param query 대상 서비스에 전달할 조회 조건
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/products/physical-albums")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> physicalAlbums(@RequestParam MultiValueMap<String, String> query,
@@ -52,7 +59,12 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/physical-albums", query, admin));
     }
 
-    /** 상품 + 옵션별 가격 · 재고 */
+    /**
+     * Catalog에서 상품 상세를 조회합니다.
+     *
+     * @param productId 상품 ID
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/products/{productId}")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> get(@PathVariable @Positive long productId,
@@ -60,7 +72,12 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/products/" + productId, null, admin));
     }
 
-    /** 상품 등록 — productType(GOODS · PHYSICAL_ALBUM) + 종류별 값 + options[{ name, vinylColor, size, price, qty }] */
+    /**
+     * Catalog에 상품 등록을 요청합니다.
+     *
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PostMapping("/api/studio/products")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> create(@RequestBody JsonNode body,
@@ -69,7 +86,13 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.POST, "/internal/admin/catalog/products", body, admin));
     }
 
-    /** 상품 수정 — 이름 · 썸네일 · 구매처 주소 · 분류 등 보낸 값만 */
+    /**
+     * Catalog에 상품 수정을 요청합니다.
+     *
+     * @param productId 상품 ID
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PatchMapping("/api/studio/products/{productId}")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> update(@PathVariable @Positive long productId, @RequestBody JsonNode body,
@@ -79,9 +102,10 @@ public class ProductAdminController {
     }
 
     /**
-     * 11/26 아티스트 등록 — 공연 라인업에 있는데 수집되지 않은 팀 (MusicBrainz 에 없음 · 크롤러가 못 찾음).
-     * { name, genres?, label?, debutYear?, profileUrl?, gender?, composition?, bio?, allowSameName? } · 같은 이름이 있으면 Catalog 가 409 (다른 팀이면 allowSameName: true).
-     * 만든 아티스트는 공연 라인업 고르기(GET /api/studio/concerts/options/artists)에 바로 나옵니다
+     * Catalog에 아티스트 등록을 요청합니다.
+     *
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
      */
     @PostMapping("/api/studio/products/artists")
     @RequirePermission(Permission.PRODUCT)
@@ -91,7 +115,13 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.POST, "/internal/admin/catalog/artists", body, admin));
     }
 
-    /** 아티스트 이미지 · 성별 · 구성 · 소개 글 바꾸기 — { profileUrl?, gender?, composition?, bio? } 보낸 값만 (이미지는 POST /api/studio/products/images 로 올린 주소) · 11/18 · 11/22 성별 · 구성 · 11/25 소개 글 ("" = 지움) */
+    /**
+     * Catalog에 아티스트 수정을 요청합니다.
+     *
+     * @param artistId 아티스트 ID
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PatchMapping("/api/studio/products/artists/{artistId}")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> updateArtist(@PathVariable @Positive long artistId, @RequestBody JsonNode body,
@@ -100,7 +130,12 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/artists/" + artistId, body, admin));
     }
 
-    /** 앨범 상세 (트랙 · 태그 · 피지컬 앨범) — 이미지 · 트랙 태그를 고칠 때 */
+    /**
+     * Catalog에서 앨범 상세를 조회합니다.
+     *
+     * @param albumId 앨범 ID
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/products/albums/{albumId}")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> album(@PathVariable @Positive long albumId,
@@ -108,7 +143,13 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/albums/" + albumId, null, admin));
     }
 
-    /** 앨범 이미지 · 소개 글 · 트랙 태그 — { thumbnailUrl, description, tracks: [{ trackNo, genres, tempo, moods, emotions, styles }] } 보낸 값만 · 11/18 · 11/25 소개 글 ("" = 지움) */
+    /**
+     * Catalog에 앨범 수정을 요청합니다.
+     *
+     * @param albumId 앨범 ID
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PatchMapping("/api/studio/products/albums/{albumId}")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> updateAlbum(@PathVariable @Positive long albumId, @RequestBody JsonNode body,
@@ -117,7 +158,13 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PATCH, "/internal/admin/catalog/albums/" + albumId, body, admin));
     }
 
-    /** 옵션 추가 · 수정 — { options: [{ id?, name, vinylColor, size, price }] }. 새 옵션에는 재고 행이 함께 생깁니다 */
+    /**
+     * Catalog에 상품 옵션 수정을 요청합니다.
+     *
+     * @param productId 상품 ID
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PutMapping("/api/studio/products/{productId}/options")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> options(@PathVariable @Positive long productId, @RequestBody JsonNode body,
@@ -125,7 +172,13 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PUT, "/internal/admin/catalog/products/" + productId + "/options", body, admin));
     }
 
-    /** 재고 조정 — { delta, reason }. 입고는 +, 회수 · 파손은 −. 0 아래로는 내려가지 않습니다 */
+    /**
+     * Catalog에 옵션 재고 증감을 요청합니다.
+     *
+     * @param optionId 상품 옵션 ID
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PostMapping("/api/studio/products/options/{optionId}/stock")
     @RequirePermission(Permission.STOCK)
     public ApiResponse<JsonNode> adjustStock(@PathVariable @Positive long optionId, @RequestBody JsonNode body,
@@ -133,7 +186,13 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.POST, "/internal/admin/catalog/options/" + optionId + "/stock", body, admin));
     }
 
-    /** 재고 설정 — { qty, reason }. 옵션 재고를 qty 개로 맞춥니다 (수집 · 시드로 들어온 상품은 재고 0 으로 들어와 여기서 정함) */
+    /**
+     * Catalog에 옵션 재고 설정을 요청합니다.
+     *
+     * @param optionId 상품 옵션 ID
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PutMapping("/api/studio/products/options/{optionId}/stock")
     @RequirePermission(Permission.STOCK)
     public ApiResponse<JsonNode> setStock(@PathVariable @Positive long optionId, @RequestBody JsonNode body,
@@ -141,7 +200,12 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CATALOG, HttpMethod.PUT, "/internal/admin/catalog/options/" + optionId + "/stock", body, admin));
     }
 
-    /** 굿즈를 걸 아티스트 찾기 — ?q=&genre=&page=&size= */
+    /**
+     * Catalog에서 선택할 아티스트 목록을 조회합니다.
+     *
+     * @param query 대상 서비스에 전달할 조회 조건
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/products/options/artists")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> artistOptions(@RequestParam MultiValueMap<String, String> query,
@@ -149,7 +213,12 @@ public class ProductAdminController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/api/catalog/artists", query, admin));
     }
 
-    /** 그 아티스트의 앨범 목록 (피지컬 앨범을 걸 앨범 고르기) */
+    /**
+     * Catalog에서 선택한 아티스트 상세를 조회합니다.
+     *
+     * @param artistId 아티스트 ID
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/products/options/artists/{artistId}")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<JsonNode> artistOption(@PathVariable @Positive long artistId,

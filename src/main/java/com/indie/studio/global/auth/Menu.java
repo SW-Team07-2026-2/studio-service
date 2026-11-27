@@ -3,7 +3,7 @@ package com.indie.studio.global.auth;
 import java.util.Arrays;
 import java.util.List;
 
-/** 대시보드 탭 — /me 가 내 역할에 해당하는 것만 내려줍니다. 프론트는 이 목록에 없는 탭을 그리지 않습니다 */
+/** 대시보드 탭 - /me 가 내 역할에 해당하는 것만 내려줍니다. 프론트는 이 목록에 없는 탭을 그리지 않습니다 */
 public enum Menu {
     VENUES("venues", "공연장 · 무대", Permission.VENUE),
     CONCERTS("concerts", "공연", Permission.CONCERT),

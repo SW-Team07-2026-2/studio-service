@@ -12,14 +12,14 @@ import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 
-/** 관리자 계정 관리 (마스터 전용) 요청 · 응답 */
+/** 관리자 계정 관리 (마스터 전용) 요청, 응답 */
 public final class AccountDtos {
 
     private AccountDtos() {}
 
     /**
-     * loginId — 영문 소문자 · 숫자 · 점 4~32자.
-     * otpEmails — 로그인 인증 코드를 받을 메일 1~5개. 역할별 공용 계정이면 담당자 메일을 모두 (같은 코드가 모두에게 갑니다)
+     * loginId - 영문 소문자, 숫자, 점 4~32자.
+     * otpEmails - 로그인 인증 코드를 받을 메일 1~5개. 역할별 공용 계정이면 담당자 메일을 모두 (같은 코드가 모두에게 갑니다)
      */
     public record CreateRequest(@NotNull @Pattern(regexp = "[a-z0-9.]{4,32}") String loginId,
                                 @NotBlank @Size(max = 50) String name,

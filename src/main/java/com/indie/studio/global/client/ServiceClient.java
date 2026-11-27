@@ -27,15 +27,8 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * Concert · Catalog · Member · Payment 호출 (AWS 또는 온프레미스) — Studio 는 업무 DB 에 직접 붙지 않고 전부 여기로 읽고 씁니다.
- * KT 에서 Cloudflare 관리자 터널(link-aws · link-onprem.indig.co.kr)을 건너가므로 느릴 수 있습니다 (제한 시간 app.services.read-timeout-ms).
- * <pre>
- * 붙이는 헤더  X-Internal-Token (iss=studio · aud=대상) · X-Admin-Id (누가 시켰나 — 대상 서비스의 기록용) · X-Correlation-Id
- * 성공        ApiResponse 의 result 만 꺼내 돌려줍니다
- * 4xx         대상 서비스의 상태 · code · message 를 그대로 (UpstreamError)
- * 401 · 403   Studio 의 내부 토큰 문제 → 502 UPSTREAM_ERROR. 🔴 401 로 내보내면 화면이 관리자를 로그아웃시킵니다
- * 5xx         502 UPSTREAM_ERROR  ·  연결 실패 · 시간 초과 → 503 UPSTREAM_UNAVAILABLE
- * </pre>
+ * Studio -> 관리자 터널 -> Concert, Catalog, Member 또는 Payment 내부 API.
+ * 내부 토큰, 관리자 ID와 요청 추적 ID를 전달합니다. 업무 DB는 직접 조회하지 않습니다.
  */
 @Component
 public class ServiceClient {
@@ -61,15 +54,39 @@ public class ServiceClient {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 대상 서비스에 조회를 요청하고 result를 반환합니다.
+     *
+     * @param target 호출할 대상 서비스
+     * @param path 대상 서비스 API 경로
+     * @param query 대상 서비스에 전달할 조회 조건
+     * @param admin 요청한 관리자와 권한 정보
+     */
     public JsonNode get(Target target, String path, MultiValueMap<String, String> query, AdminPrincipal admin) {
         return call(target, HttpMethod.GET, path, query, null, admin);
     }
 
+    /**
+     * 대상 서비스의 내부 API로 본문과 관리자 정보를 전달합니다.
+     *
+     * @param target 호출할 대상 서비스
+     * @param method HTTP 메서드
+     * @param path 대상 서비스 API 경로
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     public JsonNode send(Target target, HttpMethod method, String path, Object body, AdminPrincipal admin) {
         return call(target, method, path, null, body, admin);
     }
 
-    /** 크롤러가 넘긴 것 (CrawlIntakeController) — 시킨 관리자가 없어 X-Admin-Id 를 붙이지 않습니다 */
+    /**
+     * 크롤러 요청을 대상 서비스에 전달합니다.
+     *
+     * @param target 호출할 대상 서비스
+     * @param method HTTP 메서드
+     * @param path 대상 서비스 API 경로
+     * @param body 대상 서비스에 전달할 요청 본문
+     */
     public JsonNode sendAsCrawler(Target target, HttpMethod method, String path, Object body) {
         return call(target, method, path, null, body, null);
     }
@@ -97,7 +114,7 @@ public class ServiceClient {
         try {
             body = objectMapper.readTree(res.getBody());
         } catch (Exception ignored) {
-            // 본문이 JSON 이 아님 (프록시 오류 페이지 등) — 상태 코드만으로 판단합니다
+            // 본문이 JSON 이 아님 (프록시 오류 페이지 등) - 상태 코드만으로 판단합니다
         }
         if (status < 300) {
             JsonNode result = body == null ? null : body.get("result");

@@ -16,7 +16,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
-/** 관리자 계정 — 행을 지우지 않습니다 (기록이 이 id 를 가리킴). 그만둔 사람은 DISABLED */
+/** 관리자 계정 - 행을 지우지 않습니다 (기록이 이 id 를 가리킴). 그만둔 사람은 DISABLED */
 @Entity
 @Table(name = "admin_account")
 public class AdminAccountEntity {
@@ -35,7 +35,7 @@ public class AdminAccountEntity {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     private Status status;
-    private String otpEmails;   // 쉼표 구분 — getOtpEmails()
+    private String otpEmails;   // 쉼표 구분 - getOtpEmails()
     private int failedCount;
     private Instant lockedUntil;
     private Instant lastLoginAt;
@@ -59,7 +59,7 @@ public class AdminAccountEntity {
 
     public boolean isLocked(Instant now) { return lockedUntil != null && lockedUntil.isAfter(now); }
 
-    /** 비밀번호 · 인증 코드 실패 — maxFailures 번 연속이면 잠급니다 */
+    /** 비밀번호, 인증 코드 실패 - maxFailures 번 연속이면 잠급니다 */
     public void recordFailure(Instant now, int maxFailures, Duration lock) {
         failedCount++;
         if (failedCount >= maxFailures) {
@@ -103,7 +103,7 @@ public class AdminAccountEntity {
     public Instant getLastLoginAt() { return lastLoginAt; }
     public Instant getCreatedAt() { return createdAt; }
 
-    /** 소문자 · 앞뒤 공백 없이 · 중복 없이 */
+    /** 소문자, 앞뒤 공백 없이, 중복 없이 */
     private static String joinEmails(List<String> emails) {
         return String.join(",", emails.stream().map(e -> e.strip().toLowerCase()).distinct().toList());
     }

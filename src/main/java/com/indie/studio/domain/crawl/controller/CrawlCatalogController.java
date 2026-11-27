@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** 상품 탭의 "수집 대기" — 크롤러가 넘긴 아티스트 · 앨범(굿즈 · 트랙 · 피지컬 포함) 후보를 상품 관리자가 승인해 Catalog 에 넣습니다 */
+/** 상품 관리자 화면 -> Studio 후보 검수 -> Catalog 내부 적재 API. */
 @RestController
 public class CrawlCatalogController {
 
@@ -34,7 +34,14 @@ public class CrawlCatalogController {
         this.crawlCatalogService = crawlCatalogService;
     }
 
-    /** ?status=PENDING|APPROVED|REJECTED (기본 PENDING) &type=ARTIST|ALBUM (없으면 둘 다) &beforeId= &size= — 최신순 */
+    /**
+     * ?status=PENDING|APPROVED|REJECTED (기본 PENDING) &type=ARTIST|ALBUM (없으면 둘 다) &beforeId= &size= - 최신순
+     *
+     * @param status 조회할 후보 상태
+     * @param type 수집 후보 종류
+     * @param beforeId 이 ID보다 이전 항목부터 조회
+     * @param size 페이지당 조회 개수
+     */
     @GetMapping("/api/studio/crawl/catalog")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<List<CatalogCandidateView>> list(@RequestParam(defaultValue = "PENDING") CrawlCatalogEntity.Status status,
@@ -45,8 +52,12 @@ public class CrawlCatalogController {
     }
 
     /**
-     * 승인 → Catalog 적재. 본문을 비우면 받은 값 그대로, 넣으면 고친 항목(받은 항목과 같은 모양 · snake_case)으로 저장해 보냅니다.
-     * 409 CRAWL_ARTIST_NOT_APPROVED = 앨범의 아티스트를 먼저 승인 · 422 CRAWL_CATALOG_FAILED = Catalog 가 거절 (사유는 message · lastError)
+     * 승인 -> Catalog 적재. 본문을 비우면 받은 값 그대로, 넣으면 고친 항목(받은 항목과 같은 모양, snake_case)으로 저장해 보냅니다.
+     * 409 CRAWL_ARTIST_NOT_APPROVED = 앨범의 아티스트를 먼저 승인, 422 CRAWL_CATALOG_FAILED = Catalog 가 거절 (사유는 message, lastError)
+     *
+     * @param candidateId 수집 후보 ID
+     * @param item 관리자가 검수한 수집 항목
+     * @param admin 요청한 관리자와 권한 정보
      */
     @PostMapping("/api/studio/crawl/catalog/{candidateId}/approve")
     @RequirePermission(Permission.PRODUCT)
@@ -55,7 +66,12 @@ public class CrawlCatalogController {
         return ApiResponse.onSuccess(crawlCatalogService.approve(candidateId, item, admin));
     }
 
-    /** 여러 건 승인 { ids: [...] } (최대 100) — 아티스트부터 처리하고, 실패한 것은 항목별 code · message */
+    /**
+     * 선택한 수집 후보를 승인하고 Catalog에 적재합니다.
+     *
+     * @param request 승인할 수집 후보 ID 목록
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PostMapping("/api/studio/crawl/catalog/approve")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<List<ApproveResult>> approveMany(@Valid @RequestBody ApproveMany request,
@@ -63,7 +79,12 @@ public class CrawlCatalogController {
         return ApiResponse.onSuccess(crawlCatalogService.approveMany(request.ids(), admin));
     }
 
-    /** 적재하지 않음 — 같은 후보가 다시 와도 대기 목록에 올리지 않습니다 */
+    /**
+     * 적재하지 않음 - 같은 후보가 다시 와도 대기 목록에 올리지 않습니다
+     *
+     * @param candidateId 수집 후보 ID
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PostMapping("/api/studio/crawl/catalog/{candidateId}/reject")
     @RequirePermission(Permission.PRODUCT)
     public ApiResponse<CatalogCandidateView> reject(@PathVariable @Positive long candidateId,

@@ -1,11 +1,11 @@
 package com.indie.studio.global.auth;
 
 /**
- * 로그인한 관리자 — SessionFilter 가 요청마다 DB 의 현재 계정 상태로 만듭니다 (역할 변경 · 비활성화 즉시 반영).
- * sessionId 는 세션 쿠키 값의 SHA-256 (Redis 세션 키) — 쿠키 값 자체는 담지 않습니다.
+ * 로그인한 관리자 - SessionFilter 가 요청마다 DB 의 현재 계정 상태로 만듭니다 (역할 변경, 비활성화 즉시 반영).
+ * sessionId 는 세션 쿠키 값의 SHA-256 (Redis 세션 키) - 쿠키 값 자체는 담지 않습니다.
  */
 public record AdminPrincipal(long id, String loginId, String name, Role role, String sessionId, String csrfToken) {
 
-    /** 요청 속성 이름 — 컨트롤러는 @RequestAttribute(AdminPrincipal.ATTRIBUTE) 로 받습니다 */
+    /** 요청 속성 이름 - 컨트롤러는 @RequestAttribute(AdminPrincipal.ATTRIBUTE) 로 받습니다 */
     public static final String ATTRIBUTE = "studio.admin";
 }

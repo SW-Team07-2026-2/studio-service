@@ -27,13 +27,11 @@ import java.time.Clock;
 import java.util.Date;
 
 /**
- * /internal/crawl/** — 같은 KT compose 안의 크롤러(Python)가 부르는 경로 (11/17 결정 A1). 관리자 세션이 아니라 X-Internal-Token 으로 받습니다.
- * {iss: crawler, aud: studio, exp} HS256 · 시계 오차 30초. 시크릿은 configtree `crawler.shared-secret` —
- * 🔴 서비스 공유 시크릿(internal.shared-secret)과 다른 값입니다. 같으면 크롤러가 iss=studio 토큰을 만들어 Studio 를 건너뛸 수 있습니다.
- * 시크릿 파일이 없으면 이 경로는 전부 401 입니다. KT 밖에서는 닿지 않습니다 — admin.indig.co.kr 은 Cloudflare WAF ④ 가 /api/studio/ 밖을 막습니다 (manifests-kt README).
+ * 크롤러 -> Studio 내부 수집 API의 HS256 토큰을 검증합니다.
+ * 서비스 간 공유 키와 구분된 크롤러 전용 키를 사용합니다.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 20)   // SessionFilter 와 같은 자리 — 서로 다른 경로만 봅니다
+@Order(Ordered.HIGHEST_PRECEDENCE + 20)   // SessionFilter 와 같은 자리 - 서로 다른 경로만 봅니다
 public class CrawlerTokenFilter extends OncePerRequestFilter {
 
     public static final String PREFIX = "/internal/crawl/";

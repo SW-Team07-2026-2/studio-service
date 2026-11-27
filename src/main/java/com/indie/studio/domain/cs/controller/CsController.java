@@ -19,9 +19,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * CS 관리자 — 회원의 티켓팅(예매)과 굿즈 · 피지컬 앨범 구매(주문 · 결제) 문의를 봅니다.
- * 회원은 Member, 예매는 Concert, 주문은 Catalog, 결제는 Payment 가 주인입니다. 전부 각 서비스의 내부 관리자 API 로 읽습니다.
- * 🔴 회원 개인정보를 보는 화면이라 조회도 작업 기록에 남습니다 (경로의 회원 id 까지 · 검색어는 남기지 않음).
+ * CS 관리자 화면 -> Studio -> Member, Concert, Catalog, Payment 내부 조회와 취소 API.
+ * 회원 개인정보 조회도 관리자 작업 기록에 남깁니다.
  */
 @RestController
 public class CsController {
@@ -32,7 +31,12 @@ public class CsController {
         this.serviceClient = serviceClient;
     }
 
-    /** 회원 찾기 — ?q=(회원 id · 닉네임 · 이메일)&page=&size= */
+    /**
+     * Member에 회원 검색을 요청합니다.
+     *
+     * @param query 대상 서비스에 전달할 조회 조건
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/cs/members")
     @RequirePermission(Permission.CS_READ)
     public ApiResponse<JsonNode> members(@RequestParam MultiValueMap<String, String> query,
@@ -40,6 +44,12 @@ public class CsController {
         return ApiResponse.onSuccess(serviceClient.get(Target.MEMBER, "/internal/admin/members", query, admin));
     }
 
+    /**
+     * Member에 회원 상세를 요청합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/cs/members/{userId}")
     @RequirePermission(Permission.CS_READ)
     public ApiResponse<JsonNode> member(@PathVariable @Positive long userId,
@@ -47,7 +57,13 @@ public class CsController {
         return ApiResponse.onSuccess(serviceClient.get(Target.MEMBER, "/internal/admin/members/" + userId, null, admin));
     }
 
-    /** 그 회원의 예매 (티켓팅) — ?page=&size= */
+    /**
+     * Concert에 회원 예매 내역을 요청합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param query 대상 서비스에 전달할 조회 조건
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/cs/members/{userId}/bookings")
     @RequirePermission(Permission.CS_READ)
     public ApiResponse<JsonNode> bookings(@PathVariable @Positive long userId, @RequestParam MultiValueMap<String, String> query,
@@ -55,7 +71,13 @@ public class CsController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CONCERT, "/internal/admin/concerts/users/" + userId + "/bookings", query, admin));
     }
 
-    /** 그 회원의 굿즈 · 피지컬 앨범 주문 — ?page=&size= */
+    /**
+     * Catalog에 회원 주문 내역을 요청합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param query 대상 서비스에 전달할 조회 조건
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/cs/members/{userId}/orders")
     @RequirePermission(Permission.CS_READ)
     public ApiResponse<JsonNode> orders(@PathVariable @Positive long userId, @RequestParam MultiValueMap<String, String> query,
@@ -63,7 +85,13 @@ public class CsController {
         return ApiResponse.onSuccess(serviceClient.get(Target.CATALOG, "/internal/admin/catalog/users/" + userId + "/orders", query, admin));
     }
 
-    /** 그 회원의 결제 (티켓 · 상품) — 카드 번호 같은 결제 수단 정보는 없습니다 */
+    /**
+     * Payment에 회원 결제 내역을 요청합니다.
+     *
+     * @param userId 조회하거나 처리할 회원 ID
+     * @param query 대상 서비스에 전달할 조회 조건
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/cs/members/{userId}/payments")
     @RequirePermission(Permission.CS_READ)
     public ApiResponse<JsonNode> payments(@PathVariable @Positive long userId, @RequestParam MultiValueMap<String, String> query,
@@ -71,7 +99,13 @@ public class CsController {
         return ApiResponse.onSuccess(serviceClient.get(Target.PAYMENT, "/internal/admin/payments/users/" + userId, query, admin));
     }
 
-    /** 예매 취소 대행 — { reason }. 환불 여부 · 금액은 Concert · Payment 의 규칙을 따릅니다 */
+    /**
+     * Concert에 관리자 예매 취소를 요청합니다.
+     *
+     * @param bookingId 예매 ID
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PostMapping("/api/studio/cs/bookings/{bookingId}/cancel")
     @RequirePermission(Permission.CS_CANCEL)
     public ApiResponse<JsonNode> cancelBooking(@PathVariable @Positive long bookingId, @RequestBody JsonNode body,
@@ -79,7 +113,13 @@ public class CsController {
         return ApiResponse.onSuccess(serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts/bookings/" + bookingId + "/cancel", body, admin));
     }
 
-    /** 주문 취소 대행 — { reason } */
+    /**
+     * Catalog에 관리자 주문 취소를 요청합니다.
+     *
+     * @param orderId Catalog 주문 ID
+     * @param body 대상 서비스에 전달할 요청 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PostMapping("/api/studio/cs/orders/{orderId}/cancel")
     @RequirePermission(Permission.CS_CANCEL)
     public ApiResponse<JsonNode> cancelOrder(@PathVariable @Positive long orderId, @RequestBody JsonNode body,

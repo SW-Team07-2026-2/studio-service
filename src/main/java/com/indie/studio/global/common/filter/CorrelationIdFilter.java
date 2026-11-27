@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-/** 요청마다 correlationId 를 MDC 에 올립니다 — AWS 서비스로 나가는 호출에도 같은 값을 붙여 로그를 잇습니다 */
+/** 요청마다 correlationId 를 MDC 에 올립니다 - AWS 서비스로 나가는 호출에도 같은 값을 붙여 로그를 잇습니다 */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationIdFilter extends OncePerRequestFilter {

@@ -21,10 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * 검표 관리자 — 공연장 입구에서 회원의 입장 QR 을 찍어 Concert 에 입장을 기록합니다.
- * 공연 목록도 검표 탭 아래의 경로로만 냅니다 — 검표 관리자는 공연 탭 API(/api/studio/concerts)를 볼 수 없습니다.
- */
+/** 검표 관리자 화면 -> Studio -> Concert 내부 API로 공연 조회와 QR 입장 처리를 요청합니다. */
 @RestController
 public class CheckInController {
 
@@ -37,7 +34,11 @@ public class CheckInController {
         this.serviceClient = serviceClient;
     }
 
-    /** 지금 검표할 수 있는 공연 */
+    /**
+     * Concert에서 검표 가능한 공연을 조회합니다.
+     *
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/check-in/concerts")
     @RequirePermission(Permission.CHECK_IN)
     public ApiResponse<JsonNode> concerts(@RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
@@ -45,8 +46,11 @@ public class CheckInController {
     }
 
     /**
-     * 입장 처리 — { token } → { bookingId, seats[], checkedInAt }. 이미 입장한 QR 은 409 ALREADY_CHECKED_IN (+ checkedInAt).
-     * 🔴 검표자(checkerId)는 세션의 관리자 id 로 채웁니다 — 화면이 보낸 값을 쓰지 않습니다.
+     * Concert에 QR 입장 처리를 요청합니다.
+     *
+     * @param concertId 공연 ID
+     * @param request 입장 QR 토큰과 검표자 정보
+     * @param admin 요청한 관리자와 권한 정보
      */
     @PostMapping("/api/studio/check-in/concerts/{concertId}")
     @RequirePermission(Permission.CHECK_IN)

@@ -25,8 +25,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 로그인 · 내 계정. login · otp 두 개만 로그인 없이 부를 수 있습니다 (SessionFilter.PUBLIC_PATHS).
- * 소셜 로그인으로는 관리자가 될 수 없고, 사용자 서비스(member)의 토큰은 여기서 통하지 않습니다.
+ * 관리자 화면 -> Studio 아이디, 비밀번호와 메일 OTP 인증 -> Redis 세션 발급.
+ * 사용자용 Member 토큰은 관리자 인증에 사용할 수 없습니다.
  */
 @RestController
 public class AuthController {
@@ -39,7 +39,12 @@ public class AuthController {
         this.cookies = cookies;
     }
 
-    /** 1차 — 아이디 · 비밀번호. 통과하면 인증 코드 메일을 보냅니다. 아직 로그인이 아닙니다 */
+    /**
+     * 1차 - 아이디, 비밀번호. 통과하면 인증 코드 메일을 보냅니다. 아직 로그인이 아닙니다
+     *
+     * @param request 관리자 로그인 ID와 비밀번호
+     * @param http 현재 HTTP 요청
+     */
     @PostMapping("/api/studio/auth/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
         AuthService.LoginResult result = authService.login(request.loginId(), request.password(), ClientIp.of(http));
@@ -48,7 +53,13 @@ public class AuthController {
                 .body(ApiResponse.onSuccess(new LoginResponse("OTP", result.sentTo())));
     }
 
-    /** 2차 — 메일로 받은 인증 코드 6자리. 통과하면 세션 쿠키가 내려가고 대시보드에 들어갈 수 있습니다 */
+    /**
+     * 2차 - 메일로 받은 인증 코드 6자리. 통과하면 세션 쿠키가 내려가고 대시보드에 들어갈 수 있습니다
+     *
+     * @param request 입력한 메일 인증 코드
+     * @param challenge OTP 대기 쿠키 값
+     * @param http 현재 HTTP 요청
+     */
     @PostMapping("/api/studio/auth/otp")
     public ResponseEntity<ApiResponse<MeResponse>> otp(@Valid @RequestBody OtpRequest request,
                                                        @CookieValue(name = SessionCookies.CHALLENGE, required = false) String challenge,
@@ -60,6 +71,11 @@ public class AuthController {
                 .body(ApiResponse.onSuccess(MeResponse.of(issued.admin())));
     }
 
+    /**
+     * 관리자 세션을 폐기합니다.
+     *
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PostMapping("/api/studio/auth/logout")
     @RequirePermission(Permission.SELF)
     public ResponseEntity<ApiResponse<Void>> logout(@RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
@@ -67,13 +83,23 @@ public class AuthController {
         return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookies.clearSession()).body(ApiResponse.onSuccess(null));
     }
 
-    /** 대시보드가 처음 부르는 API — 내 역할의 탭(menus)과 CSRF 토큰 */
+    /**
+     * 대시보드가 처음 부르는 API - 내 역할의 탭(menus)과 CSRF 토큰
+     *
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @GetMapping("/api/studio/me")
     @RequirePermission(Permission.SELF)
     public ApiResponse<MeResponse> me(@RequestAttribute(AdminPrincipal.ATTRIBUTE) AdminPrincipal admin) {
         return ApiResponse.onSuccess(MeResponse.of(admin));
     }
 
+    /**
+     * 현재 관리자 비밀번호를 확인하고 새 비밀번호를 저장합니다.
+     *
+     * @param request 현재 비밀번호와 새 비밀번호
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PutMapping("/api/studio/me/password")
     @RequirePermission(Permission.SELF)
     public ApiResponse<Void> changePassword(@Valid @RequestBody PasswordChangeRequest request,
