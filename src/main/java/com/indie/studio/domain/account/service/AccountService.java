@@ -18,8 +18,8 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 관리자 계정 관리 — 마스터만 부릅니다 (Permission.ACCOUNT).
- * 역할 · 상태 · 비밀번호가 바뀌면 그 계정의 세션을 모두 끊습니다. 계정은 지우지 않고 DISABLED 로 둡니다.
+ * 관리자 계정 관리 - 마스터만 부릅니다 (Permission.ACCOUNT).
+ * 역할, 상태, 비밀번호가 바뀌면 그 계정의 세션을 모두 끊습니다. 계정은 지우지 않고 DISABLED 로 둡니다.
  */
 @Service
 public class AccountService {
@@ -36,11 +36,17 @@ public class AccountService {
         this.clock = clock;
     }
 
+    /** 관리자 계정 목록을 조회합니다. */
     @Transactional(readOnly = true)
     public List<AccountView> list() {
         return accounts.findAll().stream().map(AccountView::of).toList();
     }
 
+    /**
+     * 관리자 계정 정보를 등록합니다.
+     *
+     * @param request 생성할 관리자 계정 정보
+     */
     @Transactional
     public AccountView create(CreateRequest request) {
         if (accounts.existsByLoginId(request.loginId())) throw new GeneralException(AccountErrorCode.LOGIN_ID_TAKEN);
@@ -49,6 +55,13 @@ public class AccountService {
                 passwordEncoder.encode(request.password()), request.role(), request.otpEmails(), clock.instant())));
     }
 
+    /**
+     * 관리자 계정 정보를 수정합니다.
+     *
+     * @param id 관리자 계정 ID
+     * @param request 변경할 관리자 계정 정보
+     * @param actor 작업을 수행할 관리자와 권한 정보
+     */
     @Transactional
     public AccountView update(long id, UpdateRequest request, AdminPrincipal actor) {
         AdminAccountEntity account = other(id, actor, request.role() != null || request.status() != null);
@@ -60,7 +73,13 @@ public class AccountService {
         return AccountView.of(account);
     }
 
-    /** 비밀번호를 새로 정해 줍니다 — 잠금도 풀립니다 */
+    /**
+     * 비밀번호를 새로 정해 줍니다 - 잠금도 풀립니다
+     *
+     * @param id 관리자 계정 ID
+     * @param password 관리자 비밀번호
+     * @param actor 작업을 수행할 관리자와 권한 정보
+     */
     @Transactional
     public void resetPassword(long id, String password, AdminPrincipal actor) {
         AdminAccountEntity account = other(id, actor, true);

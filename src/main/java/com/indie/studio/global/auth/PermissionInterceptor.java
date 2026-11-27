@@ -17,14 +17,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import java.time.Clock;
 import java.util.Set;
 
-/**
- * 역할 검사 — 핸들러의 @RequirePermission 을 내 역할이 가졌는지 봅니다.
- * <pre>
- * ① 권한이 없거나 · 선언이 없는 핸들러 → 404 NOT_FOUND. 없는 경로와 응답이 같아서, 무대 관리자는 굿즈 API 가 있는지조차 알 수 없습니다.
- * ② 상태를 바꾸는 요청은 X-CSRF-Token 이 세션의 값과 같아야 합니다 (쿠키 인증이라 필요) → 403 CSRF_INVALID
- * ③ 요청 1건마다 작업 기록 1행 (조회 · 권한 밖 시도 포함)
- * </pre>
- */
+/** 관리자 권한과 상태 변경 요청의 CSRF 토큰을 검사하고 작업 기록을 남깁니다. 권한이 없는 경로는 404로 응답합니다. */
 @Component
 public class PermissionInterceptor implements HandlerInterceptor {
 
@@ -44,7 +37,7 @@ public class PermissionInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         AdminPrincipal admin = (AdminPrincipal) request.getAttribute(AdminPrincipal.ATTRIBUTE);
-        if (admin == null || !(handler instanceof HandlerMethod method)) return true;   // 로그인 전 경로 · 없는 경로
+        if (admin == null || !(handler instanceof HandlerMethod method)) return true;   // 로그인 전 경로, 없는 경로
         request.setAttribute(STARTED, System.nanoTime());
 
         RequirePermission required = method.getMethodAnnotation(RequirePermission.class);
@@ -68,7 +61,7 @@ public class PermissionInterceptor implements HandlerInterceptor {
         record(request, admin, status, status < 400 ? AuditLogEntity.Result.OK : AuditLogEntity.Result.FAILED);
     }
 
-    /** 기록에 실패해도 요청은 그대로 둡니다 — 실패는 서버 로그에 남습니다 */
+    /** 기록에 실패해도 요청은 그대로 둡니다 - 실패는 서버 로그에 남습니다 */
     private void record(HttpServletRequest request, AdminPrincipal admin, int status, AuditLogEntity.Result result) {
         try {
             Long started = (Long) request.getAttribute(STARTED);

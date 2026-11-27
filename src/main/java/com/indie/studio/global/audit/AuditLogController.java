@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Instant;
 import java.util.List;
 
-/** 작업 기록 조회 — 마스터 전용. 최신순이고, 다음 쪽은 마지막 항목의 id 를 beforeId 로 보냅니다 */
+/** 작업 기록 조회 - 마스터 전용. 최신순이고, 다음 쪽은 마지막 항목의 id 를 beforeId 로 보냅니다 */
 @RestController
 public class AuditLogController {
 

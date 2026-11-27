@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** 관리자 계정 관리 — 마스터 전용. 다른 역할에게는 이 경로가 404 입니다 */
+/** 관리자 화면 -> Studio 계정 관리 API. 마스터 권한으로 관리자 등록, 수정과 비밀번호 재설정을 수행합니다. */
 @RestController
 public class AccountController {
 
@@ -31,19 +31,31 @@ public class AccountController {
         this.accountService = accountService;
     }
 
+    /** 관리자 계정 목록을 조회합니다. */
     @GetMapping("/api/studio/accounts")
     @RequirePermission(Permission.ACCOUNT)
     public ApiResponse<List<AccountView>> list() {
         return ApiResponse.onSuccess(accountService.list());
     }
 
+    /**
+     * 관리자 계정 정보를 등록합니다.
+     *
+     * @param request 생성할 관리자 계정 정보
+     */
     @PostMapping("/api/studio/accounts")
     @RequirePermission(Permission.ACCOUNT)
     public ApiResponse<AccountView> create(@Valid @RequestBody CreateRequest request) {
         return ApiResponse.onSuccess(accountService.create(request));
     }
 
-    /** 이름 · 역할 · 상태(ACTIVE · DISABLED) · 인증 코드 받을 메일. 역할 · 상태가 바뀌면 그 계정은 바로 로그아웃됩니다 */
+    /**
+     * 이름, 역할, 상태(ACTIVE, DISABLED), 인증 코드 받을 메일. 역할, 상태가 바뀌면 그 계정은 바로 로그아웃됩니다
+     *
+     * @param accountId 관리자 계정 ID
+     * @param request 변경할 관리자 계정 정보
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PatchMapping("/api/studio/accounts/{accountId}")
     @RequirePermission(Permission.ACCOUNT)
     public ApiResponse<AccountView> update(@PathVariable @Positive long accountId, @Valid @RequestBody UpdateRequest request,
@@ -51,6 +63,13 @@ public class AccountController {
         return ApiResponse.onSuccess(accountService.update(accountId, request, admin));
     }
 
+    /**
+     * 지정한 관리자 계정의 비밀번호를 재설정합니다.
+     *
+     * @param accountId 관리자 계정 ID
+     * @param request 재설정할 관리자 비밀번호
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @PostMapping("/api/studio/accounts/{accountId}/password-reset")
     @RequirePermission(Permission.ACCOUNT)
     public ApiResponse<Void> resetPassword(@PathVariable @Positive long accountId, @Valid @RequestBody PasswordResetRequest request,

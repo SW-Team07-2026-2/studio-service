@@ -14,9 +14,9 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 /**
- * 크롤러가 넘긴 아티스트 · 앨범 후보 한 건. PENDING(승인 대기) → APPROVED(Catalog 에 적재) · REJECTED(적재 안 함).
- * 승인된 뒤 값이 바뀌어 다시 오면 PENDING 으로 돌아갑니다 (catalog_id 는 그대로 — 화면에서 "변경" 으로 보임).
- * 값을 바꾸면 V2__studio_values.sql 의 ck_crawl_catalog_type · ck_crawl_catalog_status 도 함께 고칩니다.
+ * 크롤러가 넘긴 아티스트, 앨범 후보 한 건. PENDING(승인 대기) -> APPROVED(Catalog 에 적재), REJECTED(적재 안 함).
+ * 승인된 뒤 값이 바뀌어 다시 오면 PENDING 으로 돌아갑니다 (catalog_id 는 그대로 - 화면에서 "변경" 으로 보임).
+ * 값을 바꾸면 V2__studio_values.sql 의 ck_crawl_catalog_type, ck_crawl_catalog_status 도 함께 고칩니다.
  */
 @Entity
 @Table(name = "crawl_catalog")
@@ -58,7 +58,7 @@ public class CrawlCatalogEntity {
         this.receivedAt = now;
     }
 
-    /** 다시 받은 값 — 승인된 것이었으면 다시 승인 대기로 */
+    /** 다시 받은 값 - 승인된 것이었으면 다시 승인 대기로 */
     public void received(String sourceHash, String payloadJson, Instant now) {
         this.sourceHash = sourceHash;
         this.payloadJson = payloadJson;

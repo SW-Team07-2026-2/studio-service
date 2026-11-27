@@ -15,7 +15,7 @@ import java.time.Instant;
 
 /**
  * 무대 그리기 작업 한 건.
- * PENDING(접수) → ANALYZING(GPU 검증 중) → REVIEW(결과 도착 · 관리자 확인 대기) → SENT(Concert 로 보냄) · 어디서든 FAILED.
+ * PENDING(접수) -> ANALYZING(GPU 검증 중) -> REVIEW(결과 도착, 관리자 확인 대기) -> SENT(Concert 로 보냄), 어디서든 FAILED.
  * 값을 바꾸면 V1__studio_schema.sql 의 ck_stage_job_status 도 함께 고칩니다.
  */
 @Entity

@@ -15,15 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * 관리자 계정 심기 — 시크릿 파일 bootstrap.admins (configtree) 의 줄마다, DB 에 없는 아이디만 만듭니다.
- * <pre>
- * 아이디,이름,역할,메일(여러 개면 ;),bcrypt 해시      # 로 시작하는 줄 · 빈 줄은 무시
- * </pre>
- * 이미 있는 계정은 건드리지 않습니다 — 비밀번호 · 메일 · 역할은 계정 관리 화면(마스터)이나 내 비밀번호 변경으로 바꿉니다.
- * 형식이 틀리면 기동을 멈춥니다 (잘못된 계정이 조용히 빠지지 않게).
- * 운영 파일은 맥의 ~/indie-secrets/kt/admins.csv(비밀번호 원문)를 manifests-kt scripts/make-secrets.sh 가 bcrypt 로 바꿔 만듭니다.
- */
+/** 설정된 관리자 계정을 최초 등록합니다. 이미 존재하는 계정은 변경하지 않으며 잘못된 입력은 기동 실패로 처리합니다. */
 @Component
 public class AdminSeeder implements ApplicationRunner {
 

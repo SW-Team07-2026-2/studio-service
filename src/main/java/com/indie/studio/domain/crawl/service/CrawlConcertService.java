@@ -26,10 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 크롤링 공연 후보 — 받기(크롤러) · 목록 · 등록 · 등록 안 함(공연 관리자).
- * 등록은 관리자가 보완한 공연 값(POST /api/studio/concerts 와 같은 본문)에 후보의 source · externalId 를 넣어 Concert 에 보냅니다.
- * Concert 가 (source, externalId) 를 유일하게 막아 같은 후보를 두 번 등록할 수 없습니다 (동시에 누르면 뒤쪽이 409).
- * 등록한 공연이 출처에서 바뀌어 다시 오면 CHANGED (11/18) — 관리자가 공연 수정 · 변경 공지(/api/studio/concerts/{concertId}/notices)로 반영하고 확인합니다.
+ * 수집한 공연 후보를 저장하고 관리자가 보완한 값으로 Concert에 등록합니다.
+ * 등록 후 출처가 바뀌면 CHANGED로 표시해 관리자가 수정과 변경 공지를 확인하도록 합니다.
  */
 @Service
 public class CrawlConcertService {
@@ -49,6 +47,11 @@ public class CrawlConcertService {
         this.clock = clock;
     }
 
+    /**
+     * 공연 후보 수집 항목을 저장하고 항목별 결과를 반환합니다.
+     *
+     * @param items 수집 후보 항목 목록
+     */
     @Transactional
     public List<ItemResult> receive(List<ConcertItem> items) {
         List<ItemResult> results = new ArrayList<>();
@@ -63,7 +66,7 @@ public class CrawlConcertService {
                 result = ItemResult.Result.REVIEWED;
             } else if (item.sourceHash() != null && item.sourceHash().equals(found.getSourceHash())) {
                 result = ItemResult.Result.UNCHANGED;
-            } else if (found.getStatus() != CrawlConcertEntity.Status.PENDING) {   // 등록한 공연이 바뀜 (APPROVED · CHANGED)
+            } else if (found.getStatus() != CrawlConcertEntity.Status.PENDING) {   // 등록한 공연이 바뀜 (APPROVED, CHANGED)
                 found.changed(item.sourceHash(), payload, clock.instant());
                 result = ItemResult.Result.CHANGED;
             } else {
@@ -75,30 +78,49 @@ public class CrawlConcertService {
         return results;
     }
 
+    /**
+     * 공연 후보 목록을 조회합니다.
+     *
+     * @param status 조회할 후보 상태
+     * @param beforeId 이 ID보다 이전 항목부터 조회
+     * @param size 페이지당 조회 개수
+     */
     @Transactional(readOnly = true)
     public List<CandidateView> list(CrawlConcertEntity.Status status, Long beforeId, int size) {
         return candidates.page(status, beforeId, PageRequest.of(0, size)).stream().map(this::view).toList();
     }
 
+    /** 공연 후보 검수 완료 후보를 조회합니다. */
     @Transactional(readOnly = true)
     public List<ReviewedKey> reviewed() {
         return candidates.reviewed(CrawlConcertEntity.Status.PENDING).stream()
                 .map(r -> new ReviewedKey(r.getSource(), r.getExternalId(), r.getStatus().name())).toList();
     }
 
-    /** Concert 호출은 트랜잭션 밖 — 결과를 받은 뒤 상태만 바꿉니다 */
+    /**
+     * Concert 호출은 트랜잭션 밖 - 결과를 받은 뒤 상태만 바꿉니다
+     *
+     * @param id 공연 후보 ID
+     * @param concert 검수한 공연 등록 본문
+     * @param admin 요청한 관리자와 권한 정보
+     */
     public JsonNode approve(long id, ObjectNode concert, AdminPrincipal admin) {
         CrawlConcertEntity candidate = pending(id);
         concert.put("source", candidate.getSource());
         concert.put("externalId", candidate.getExternalId());
-        images.importConcertImages(concert);   // KOPIS 포스터 · 소개 이미지 → 우리 버킷 (못 받으면 400 — 관리자가 직접 올림)
+        images.importConcertImages(concert);   // KOPIS 포스터, 소개 이미지 -> 우리 버킷 (못 받으면 400 - 관리자가 직접 올림)
         JsonNode created = serviceClient.send(Target.CONCERT, HttpMethod.POST, "/internal/admin/concerts", concert, admin);
         candidate.approved(created.path("id").asLong(), admin.id(), clock.instant());
         candidates.save(candidate);
         return created;
     }
 
-    /** 바뀐 공연을 반영했음 — 공연 수정 · 변경 공지는 관리자가 따로 합니다 (화면은 previous 와 concert 를 비교해 보여 줌) */
+    /**
+     * 바뀐 공연을 반영했음 - 공연 수정, 변경 공지는 관리자가 따로 합니다 (화면은 previous 와 concert 를 비교해 보여 줌)
+     *
+     * @param id 공연 후보 ID
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @Transactional
     public CandidateView changeChecked(long id, AdminPrincipal admin) {
         CrawlConcertEntity candidate = candidates.findById(id).orElseThrow(() -> new GeneralException(CrawlErrorCode.CRAWL_CONCERT_NOT_FOUND));
@@ -107,6 +129,12 @@ public class CrawlConcertService {
         return view(candidate);
     }
 
+    /**
+     * 공연 후보 후보를 적재하지 않도록 처리합니다.
+     *
+     * @param id 공연 후보 ID
+     * @param admin 요청한 관리자와 권한 정보
+     */
     @Transactional
     public CandidateView reject(long id, AdminPrincipal admin) {
         CrawlConcertEntity candidate = pending(id);
