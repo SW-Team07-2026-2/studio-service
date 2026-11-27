@@ -27,7 +27,7 @@ public class SessionCookies {
     /**
      * HttpOnly 관리자 세션 쿠키를 생성합니다.
      *
-     * @param token 검증하거나 저장할 토큰
+     * @param token 관리자 세션 토큰
      */
     public String session(String token) {
         return cookie(SESSION, token, SESSION_PATH, Duration.ofHours(props.session().ttlHours()));
@@ -41,7 +41,7 @@ public class SessionCookies {
     /**
      * OTP 인증 대기 쿠키를 생성합니다.
      *
-     * @param token 검증하거나 저장할 토큰
+     * @param token OTP 대기 토큰
      */
     public String challenge(String token) {
         return cookie(CHALLENGE, token, CHALLENGE_PATH, Duration.ofMinutes(props.login().challengeMinutes()));

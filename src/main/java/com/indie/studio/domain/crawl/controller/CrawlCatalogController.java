@@ -38,7 +38,7 @@ public class CrawlCatalogController {
      * ?status=PENDING|APPROVED|REJECTED (기본 PENDING) &type=ARTIST|ALBUM (없으면 둘 다) &beforeId= &size= - 최신순
      *
      * @param status 조회할 후보 상태
-     * @param type 처리할 종류
+     * @param type 수집 후보 종류
      * @param beforeId 이 ID보다 이전 항목부터 조회
      * @param size 페이지당 조회 개수
      */

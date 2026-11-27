@@ -58,7 +58,7 @@ public class CrawlCatalogService {
     /**
      * 아티스트와 앨범 후보 수집 항목을 저장하고 항목별 결과를 반환합니다.
      *
-     * @param type 처리할 종류
+     * @param type 수집 후보 종류
      * @param items 수집 후보 항목 목록
      */
     @Transactional
@@ -91,7 +91,7 @@ public class CrawlCatalogService {
      * 아티스트와 앨범 후보 목록을 조회합니다.
      *
      * @param status 조회할 후보 상태
-     * @param type 처리할 종류
+     * @param type 수집 후보 종류
      * @param beforeId 이 ID보다 이전 항목부터 조회
      * @param size 페이지당 조회 개수
      */
@@ -103,7 +103,7 @@ public class CrawlCatalogService {
     /**
      * 아티스트와 앨범 후보 검수 완료 후보를 조회합니다.
      *
-     * @param type 처리할 종류
+     * @param type 수집 후보 종류
      */
     @Transactional(readOnly = true)
     public List<ReviewedKey> reviewed(Type type) {

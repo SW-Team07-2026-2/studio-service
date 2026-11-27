@@ -97,7 +97,7 @@ public class AuthService {
      * 메일 인증 코드를 검증하고 관리자 세션을 발급합니다.
      *
      * @param challengeToken OTP 대기 토큰
-     * @param code 약관 또는 인증 코드
+     * @param code 입력한 메일 인증 코드
      * @param clientIp 로그인 요청 IP
      */
     public SessionIssued verifyOtp(String challengeToken, String code, String clientIp) {

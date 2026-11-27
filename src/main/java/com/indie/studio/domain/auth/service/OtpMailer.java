@@ -24,8 +24,8 @@ public class OtpMailer {
      * 못 보내면 MailException - 부르는 쪽(AuthService.login)이 2단계 대기를 지웁니다
      *
      * @param loginId 관리자 로그인 ID
-     * @param to 공연 조회 종료일
-     * @param code 약관 또는 인증 코드
+     * @param to 인증 코드를 받을 이메일 주소 목록
+     * @param code 입력한 메일 인증 코드
      * @param ttl 인증 코드 유효 시간
      */
     public void send(String loginId, List<String> to, String code, Duration ttl) {
